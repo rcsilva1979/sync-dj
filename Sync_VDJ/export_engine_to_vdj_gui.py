@@ -5,12 +5,16 @@ import sys
 import json
 from PIL import Image
 from datetime import datetime
+from collections import defaultdict
+import xml.etree.ElementTree as ET
+import xml.dom.minidom as minidom
 
 # Adiciona o diretório pai (Engine-Sync) ao sys.path para importar engine_sync_app
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) #
 from database_utils import get_tracks_from_playlist, localizar_bancos_dados_engine, get_database_uuid, get_all_playlists_hierarchical #
 from Sync_VDJ.vdj_logic import VDJManager
 
+ALL_DBS_LABEL = ">>> TODOS OS BANCOS LOCALIZADOS <<<"
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -32,6 +36,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.selected_playlist = ctk.StringVar()
         self.target_vdj_path = ctk.StringVar()
         self.playlists_options = []
+        self.playlist_db_map = defaultdict(list) # Mapeia o caminho da playlist para uma LISTA de (caminho_db, playlist_id)
 
         # Busca automática de bancos de dados
         self.found_databases = localizar_bancos_dados_engine()
@@ -74,11 +79,15 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.lbl_db = ctk.CTkLabel(db_frame, text=self.txt.get("db_file", "Banco de Dados (m.db):"), font=ctk.CTkFont(weight="bold"))
         self.lbl_db.pack(anchor="w")
 
+        db_values = list(self.found_databases)
+        if len(db_values) > 1:
+            db_values.insert(0, ALL_DBS_LABEL)
+
         # Substituído Entry por ComboBox para busca automática
         self.combo_db = ctk.CTkComboBox(
             db_frame,
             variable=self.engine_db_path,
-            values=self.found_databases,
+            values=db_values,
             width=350,
             command=self.load_playlists_from_db
         )
@@ -99,35 +108,18 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")
         playlist_frame.pack(padx=20, pady=10, fill="x")
 
-        lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("playlist", "Playlist Raiz:"), font=ctk.CTkFont(weight="bold"))
+        lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("playlist_label", "Selecionar Playlist (Caminho Completo):"), font=ctk.CTkFont(weight="bold"))
         lbl_playlist.pack(anchor="w")
 
-        # --- Custom Dropdown para Playlists ---
-        self.playlist_selector_frame = ctk.CTkFrame(playlist_frame, fg_color="transparent")
-        self.playlist_selector_frame.pack(fill="x", expand=True, pady=(5, 0))
-
-        self.playlist_display_entry = ctk.CTkEntry(
-            self.playlist_selector_frame,
-            textvariable=self.selected_playlist,
-            width=400, # Ajustar conforme necessário
-            state="readonly" # Apenas para exibição, seleção via dropdown
+        # Seletor de playlist usando ComboBox padrão (estável e com rolagem nativa)
+        self.combo_playlist = ctk.CTkComboBox(
+            playlist_frame,
+            variable=self.selected_playlist,
+            values=[],
+            width=540,
+            state="disabled"
         )
-        self.playlist_display_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
-
-        self.dropdown_arrow_button = ctk.CTkButton(
-            self.playlist_selector_frame,
-            text="▼", # Seta para baixo
-            width=40,
-            fg_color="#00E5A3",
-            text_color="#000000",
-            hover_color="#00b37e",
-            command=self.toggle_playlist_dropdown
-        )
-        self.dropdown_arrow_button.pack(side="right")
-
-        # Frame rolável para a lista de playlists (inicialmente escondido)
-        self.dropdown_list_frame = ctk.CTkScrollableFrame(self, height=160, fg_color="#1a1a1a")
-        # Não empacotar/colocar ainda, será posicionado dinamicamente
+        self.combo_playlist.pack(fill="x", expand=True, pady=(5, 0))
 
         # Frame para seleção da pasta de destino no VDJ
         target_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -185,10 +177,6 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         # Status/Log
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
-        
-        # Bind a click event to the whole window to hide the dropdown if clicked outside
-        # Usar add=True para não sobrescrever outros binds
-        self.bind("<Button-1>", self.hide_playlist_dropdown_on_click, add=True)
 
     def browse_engine_db(self):
         db_path = filedialog.askopenfilename(
@@ -211,139 +199,143 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.update_status("Seleção de banco de dados cancelada.")
 
     def load_playlists_from_db(self, db_path):
-        if not db_path or not os.path.exists(db_path):
+        if not db_path:
+            return
+            
+        if db_path != ALL_DBS_LABEL and not os.path.exists(db_path):
             self.update_status("Erro: Arquivo de banco de dados não encontrado.", "red")
             self.selected_playlist.set("")
             return
 
         try:
-            # Atualiza o UUID na interface
-            uuid = get_database_uuid(db_path)
-            if uuid:
-                self.lbl_db.configure(text=f"{self.txt.get('db_file', 'Banco de Dados (m.db):')} [{uuid}]")
-            else:
-                self.lbl_db.configure(text=self.txt.get('db_file', 'Banco de Dados (m.db):'))
-
-            playlists = get_all_playlists_hierarchical(db_path)
+            self.playlist_db_map = defaultdict(list)
             
-            # Limpa os widgets atuais no frame rolável do dropdown
-            for widget in self.dropdown_list_frame.winfo_children():
-                widget.destroy()
+            # Define quais bancos carregar
+            paths_to_load = self.found_databases if db_path == ALL_DBS_LABEL else [db_path]
+            
+            for path in paths_to_load:
+                if not os.path.exists(path):
+                    continue
+                
+                # Obtém todas as playlists (incluindo subpastas) em formato de tupla (caminho, id)
+                results = get_all_playlists_hierarchical(path)
+                for pl_path, pl_id in results:
+                    # Usamos o caminho hierárquico puro como chave para agrupar playlists de discos diferentes
+                    self.playlist_db_map[pl_path].append((path, pl_id))
 
-            if playlists:
-                self.playlists_options = playlists
-                
-                # Adiciona as playlists como botões clicáveis
-                for pl_name in playlists:
-                    btn = ctk.CTkButton(
-                        self.dropdown_list_frame,
-                        text=pl_name,
-                        anchor="w",
-                        fg_color="transparent",
-                        text_color="#FFFFFF",
-                        hover_color="#333333",
-                        height=28,
-                        command=lambda n=pl_name: self.select_playlist(n)
-                    )
-                    btn.pack(fill="x", padx=2, pady=1)
-                
-                self.select_playlist(playlists[0]) # Seleciona a primeira por padrão
-                self.update_status(f"{len(playlists)} playlists encontradas.")
-                
-                self.update_idletasks()
-                # Ajusta a largura do dropdown_list_frame para corresponder ao seletor
-                self.dropdown_list_frame.configure(width=self.playlist_selector_frame.winfo_width())
+            all_playlists_display = sorted(list(self.playlist_db_map.keys()))
+
+            # Atualiza UUID ou status de multi-banco
+            if db_path != ALL_DBS_LABEL:
+                uuid = get_database_uuid(db_path)
+                self.lbl_db.configure(text=f"{self.txt.get('db_file', 'Banco de Dados (m.db):')} [{uuid or '?'}]")
+            else:
+                self.lbl_db.configure(text=f"Modo Multi-Banco ({len(paths_to_load)} arquivos)")
+            
+            if all_playlists_display:
+                self.playlists_options = all_playlists_display
+                self.combo_playlist.configure(values=all_playlists_display, state="normal")
+                self.selected_playlist.set(all_playlists_display[0])
+                self.update_status(f"{len(all_playlists_display)} playlists carregadas.")
             else:
                 self.playlists_options = []
+                self.combo_playlist.configure(values=[], state="disabled")
                 self.selected_playlist.set("")
-                self.playlist_display_entry.configure(state="normal")
-                self.playlist_display_entry.delete(0, ctk.END)
-                self.playlist_display_entry.configure(state="readonly")
-                self.update_status("Nenhuma playlist encontrada neste banco de dados.", "orange")
+                self.update_status("Nenhuma playlist encontrada.", "orange")
         except Exception as e:
             self.update_status(f"Erro ao carregar playlists: {e}", "red")
+            self.combo_playlist.configure(values=[], state="disabled")
             self.selected_playlist.set("")
-            self.playlist_display_entry.configure(state="normal")
-            self.playlist_display_entry.delete(0, ctk.END)
-            self.playlist_display_entry.configure(state="readonly")
-
-    def toggle_playlist_dropdown(self):
-        """Mostra ou esconde o frame rolável de playlists."""
-        # Força atualização do layout para obter coordenadas precisas
-        self.update_idletasks()
-        
-        if self.dropdown_list_frame.winfo_ismapped():
-            self.dropdown_list_frame.place_forget()
-        else:
-            # Posição absoluta do seletor menos a posição absoluta da janela = posição relativa correta
-            x = self.playlist_selector_frame.winfo_rootx() - self.winfo_rootx()
-            y = self.playlist_selector_frame.winfo_rooty() - self.winfo_rooty() + self.playlist_selector_frame.winfo_height()
-            
-            self.dropdown_list_frame.place(x=x, y=y, width=self.playlist_selector_frame.winfo_width())
-            self.dropdown_list_frame.lift() # Garante que o dropdown fique acima de outros widgets
-
-    def hide_playlist_dropdown_on_click(self, event):
-        """Esconde o dropdown se o clique for fora dele ou do botão de toggle."""
-        if self.dropdown_list_frame.winfo_ismapped():
-            # Verifica se o clique foi fora do dropdown_list_frame e do dropdown_arrow_button
-            if not self.dropdown_list_frame.winfo_containing(event.x_root, event.y_root) and \
-               not self.dropdown_arrow_button.winfo_containing(event.x_root, event.y_root):
-                self.dropdown_list_frame.place_forget()
-
-    def select_playlist(self, name):
-        """Atualiza a seleção de playlist com destaque visual."""
-        self.selected_playlist.set(name)
-        self.playlist_display_entry.configure(state="normal")
-        self.playlist_display_entry.delete(0, ctk.END)
-        self.playlist_display_entry.insert(0, name)
-        self.playlist_display_entry.configure(state="readonly")
-        
-        self.dropdown_list_frame.place_forget() # Esconde o dropdown após a seleção
-
-        for widget in self.dropdown_list_frame.winfo_children():
-            if isinstance(widget, ctk.CTkButton):
-                if widget.cget("text") == name:
-                    widget.configure(fg_color="#00E5A3", text_color="#000000")
-                else:
-                    widget.configure(fg_color="transparent", text_color="#FFFFFF")
 
     def perform_import(self):
-        db_path = self.engine_db_path.get()
-        playlist_name = self.selected_playlist.get()
+        display_name = self.selected_playlist.get()
+        sources = self.playlist_db_map.get(display_name)
         dest_path = self.target_vdj_path.get()
 
-        if not db_path or not os.path.exists(db_path):
-            messagebox.showerror("Erro", "Por favor, selecione um banco de dados Engine DJ válido.")
-            return
-        if not playlist_name:
+        if not sources:
             messagebox.showerror("Erro", "Por favor, selecione uma playlist para importar.")
             return
+
         if not dest_path:
             messagebox.showerror("Erro", "Pasta de destino do VirtualDJ não identificada.")
             return
 
-        self.update_status(f"Importando '{playlist_name}' para {os.path.basename(dest_path)}...", "blue")
-        messagebox.showinfo("Importar", f"Playlist: {playlist_name}\nDestino: {dest_path}")
-        self.update_status(f"Importação de '{playlist_name}' concluída (placeholder).", "green")
-        self.destroy() # Fecha a janela após a ação
+        num_fontes = len(sources)
+        msg_hibrida = f" (Playlist Híbrida detectada em {num_fontes} discos)" if num_fontes > 1 else ""
+        
+        try:
+            self.update_status(f"Coletando faixas de '{display_name}'...", "blue")
+            
+            all_tracks = []
+            for db_path, pl_id in sources:
+                tracks = get_tracks_from_playlist(db_path, playlist_id=pl_id)
+                all_tracks.extend(tracks)
+
+            if not all_tracks:
+                self.update_status(f"Nenhuma faixa encontrada em '{display_name}'.", "orange")
+                return
+
+            # Cria estrutura XML do Virtual DJ (VirtualFolder)
+            root = ET.Element("VirtualFolder", noDuplicates="yes")
+
+            for idx, track in enumerate(all_tracks):
+                path_abs = str(track.get("caminho_absoluto") or "")
+                
+                # Virtual DJ precisa do tamanho do arquivo para validação interna
+                size = "0"
+                if path_abs and os.path.exists(path_abs):
+                    size = str(os.path.getsize(path_abs))
+
+                song = ET.SubElement(root, "song")
+                song.set("path", path_abs)
+                song.set("size", size)
+                song.set("songlength", str(track.get("length") or 0))
+                song.set("bpm", str(track.get("bpm") or 0.0))
+                song.set("key", str(track.get("key") or ""))
+                song.set("artist", str(track.get("artist") or ""))
+                song.set("title", str(track.get("title") or ""))
+                song.set("idx", str(idx))
+
+            # Formatação "Pretty Print" para o XML
+            xml_bytes = ET.tostring(root, encoding='utf-8')
+            dom = minidom.parseString(xml_bytes)
+            pretty_xml = dom.toprettyxml(indent="\t", encoding="UTF-8").decode("UTF-8")
+
+            # Sanitiza o nome do arquivo (Troca ' / ' por ' - ' e remove caracteres inválidos)
+            safe_name = display_name.replace(" / ", " - ").strip()
+            safe_name = "".join([c for c in safe_name if c.isalnum() or c in (' ', '-', '_', '.')]).rstrip()
+            output_file = os.path.join(dest_path, f"{safe_name}.vdjfolder")
+
+            with open(output_file, "wb") as f:
+                f.write(pretty_xml.encode("UTF-8"))
+
+            self.update_status(f"Sucesso! '{display_name}' exportada.", "green")
+            messagebox.showinfo("Sucesso", f"Playlist exportada para o Virtual DJ!\n{len(all_tracks)} músicas processadas.\n{msg_hibrida}\n\nArquivo: {output_file}")
+            self.destroy() # Fecha a janela após o sucesso
+
+        except Exception as e:
+            self.update_status(f"Erro na exportação: {e}", "red")
+            messagebox.showerror("Erro de Exportação", f"Não foi possível gerar o arquivo XML:\n{e}")
 
     def export_engine_playlist_info(self):
-        db_path = self.engine_db_path.get()
-        playlist_name = self.selected_playlist.get()
+        display_name = self.selected_playlist.get()
+        sources = self.playlist_db_map.get(display_name)
 
-        if not db_path or not os.path.exists(db_path):
-            messagebox.showerror("Erro", "Por favor, selecione um banco de dados Engine DJ válido.")
-            return
-        if not playlist_name:
-            messagebox.showerror("Erro", "Por favor, selecione uma playlist para exportar.")
+        if not sources:
+            messagebox.showerror("Erro", "Por favor, selecione uma playlist válida.")
             return
         
-        self.update_status(f"Extraindo informações da playlist '{playlist_name}'...", "blue")
-        tracks = get_tracks_from_playlist(db_path, playlist_name) #
+        self.update_status(f"Extraindo informações da playlist '{display_name}'...", "blue")
+        
+        all_tracks = []
+        for db_path, pl_id in sources:
+            # Agora buscamos pelo ID garantido para cada banco
+            tracks = get_tracks_from_playlist(db_path, playlist_id=pl_id)
+            all_tracks.extend(tracks)
 
-        if not tracks:
-            self.update_status(f"Nenhuma faixa encontrada na playlist '{playlist_name}'.", "orange")
-            messagebox.showinfo("Exportar", f"Nenhuma faixa encontrada na playlist '{playlist_name}'.")
+        if not all_tracks:
+            self.update_status(f"Nenhuma faixa encontrada na playlist '{display_name}'.", "orange")
+            messagebox.showinfo("Exportar", f"Nenhuma faixa encontrada na playlist '{display_name}'.")
             return
 
         try:
@@ -357,16 +349,16 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
 
             # Gerar um nome de arquivo com timestamp para evitar sobrescrever
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_filename = f"{playlist_name}_engine_tracks_{timestamp}.json"
+            output_filename = f"{display_name.replace(' / ', '_')}_combined_{timestamp}.json"
             output_file_path = os.path.join(reports_dir, output_filename)
 
             with open(output_file_path, 'w', encoding='utf-8') as f:
-                json.dump(tracks, f, indent=4, ensure_ascii=False)
+                json.dump(all_tracks, f, indent=4, ensure_ascii=False)
 
-            self.update_status(f"Informações da playlist exportadas para: {output_file_path}", "green")
+            self.update_status(f"Exportadas {len(all_tracks)} faixas de {len(sources)} banco(s).", "green")
             messagebox.showinfo(
                 "Exportar",
-                f"Informações da playlist '{playlist_name}' exportadas com sucesso para:\n{output_file_path}"
+                f"Playlist '{display_name}' exportada ({len(all_tracks)} faixas unificadas).\n\nArquivo: {output_file_path}"
             )
         except Exception as e:
             self.update_status(f"Erro ao exportar informações da playlist: {e}", "red")
