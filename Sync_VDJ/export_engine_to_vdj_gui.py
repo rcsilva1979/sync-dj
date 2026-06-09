@@ -24,8 +24,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.configure(fg_color="#242424")
 
         self.vdj_manager = VDJManager()
-        self.grab_set() # Torna esta janela modal
-        self.after(100, self.lift) # Traz a janela para a frente
+        self.transient(master)   # Vincula esta janela à janela pai (Sync VDJ)
+        self.grab_set()          # Restaura o modo modal para a janela ficar sempre no topo e focar
+        self.after(10, self.lift)
 
         self.engine_db_path = ctk.StringVar()
         self.selected_playlist = ctk.StringVar()
@@ -46,8 +47,8 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
     def build_ui(self):
         img_carregada = False
         try:
-            # Caminho para a logo dentro da subpasta Sync_VDJ relativa a este script
-            vdj_logo_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "Sync_VDJ", "logo_engine_VDJ.png"))
+            # Como este arquivo está na pasta Sync_VDJ, a logo está no mesmo diretório
+            vdj_logo_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_engine_VDJ.png"))
             if os.path.exists(vdj_logo_path):
                 imagem_logo = Image.open(vdj_logo_path)
                 ctk_logo = ctk.CTkImage(light_image=imagem_logo, dark_image=imagem_logo, size=(480, 90))
@@ -101,14 +102,32 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("playlist", "Playlist Raiz:"), font=ctk.CTkFont(weight="bold"))
         lbl_playlist.pack(anchor="w")
 
-        self.combo_playlist = ctk.CTkComboBox(
-            playlist_frame,
-            variable=self.selected_playlist,
-            values=[], # Será preenchido após a seleção do DB
-            width=450,
-            state="disabled" # Desabilitado até que o DB seja selecionado
+        # --- Custom Dropdown para Playlists ---
+        self.playlist_selector_frame = ctk.CTkFrame(playlist_frame, fg_color="transparent")
+        self.playlist_selector_frame.pack(fill="x", expand=True, pady=(5, 0))
+
+        self.playlist_display_entry = ctk.CTkEntry(
+            self.playlist_selector_frame,
+            textvariable=self.selected_playlist,
+            width=400, # Ajustar conforme necessário
+            state="readonly" # Apenas para exibição, seleção via dropdown
         )
-        self.combo_playlist.pack(fill="x", expand=True)
+        self.playlist_display_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+        self.dropdown_arrow_button = ctk.CTkButton(
+            self.playlist_selector_frame,
+            text="▼", # Seta para baixo
+            width=40,
+            fg_color="#00E5A3",
+            text_color="#000000",
+            hover_color="#00b37e",
+            command=self.toggle_playlist_dropdown
+        )
+        self.dropdown_arrow_button.pack(side="right")
+
+        # Frame rolável para a lista de playlists (inicialmente escondido)
+        self.dropdown_list_frame = ctk.CTkScrollableFrame(self, height=160, fg_color="#1a1a1a")
+        # Não empacotar/colocar ainda, será posicionado dinamicamente
 
         # Frame para seleção da pasta de destino no VDJ
         target_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -129,6 +148,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         )
         self.combo_target.pack(fill="x", expand=True)
         if vdj_destinos:
+            # Garante que o valor inicial seja um dos valores válidos
+            if self.target_vdj_path.get() not in vdj_destinos_display and vdj_destinos_display:
+                self.target_vdj_path.set(vdj_destinos_display[0])
             self.target_vdj_path.set(vdj_destinos[0])
 
         # Botão de Importar
@@ -163,6 +185,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         # Status/Log
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
+        
+        # Bind a click event to the whole window to hide the dropdown if clicked outside
+        # Usar add=True para não sobrescrever outros binds
+        self.bind("<Button-1>", self.hide_playlist_dropdown_on_click, add=True)
 
     def browse_engine_db(self):
         db_path = filedialog.askopenfilename(
@@ -185,9 +211,8 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.update_status("Seleção de banco de dados cancelada.")
 
     def load_playlists_from_db(self, db_path):
-        if not os.path.exists(db_path):
+        if not db_path or not os.path.exists(db_path):
             self.update_status("Erro: Arquivo de banco de dados não encontrado.", "red")
-            self.combo_playlist.configure(values=[], state="disabled")
             self.selected_playlist.set("")
             return
 
@@ -200,19 +225,87 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
                 self.lbl_db.configure(text=self.txt.get('db_file', 'Banco de Dados (m.db):'))
 
             playlists = get_all_playlists_hierarchical(db_path)
+            
+            # Limpa os widgets atuais no frame rolável do dropdown
+            for widget in self.dropdown_list_frame.winfo_children():
+                widget.destroy()
 
             if playlists:
                 self.playlists_options = playlists
-                self.combo_playlist.configure(values=playlists, state="normal")
-                self.selected_playlist.set(playlists[0]) # Seleciona a primeira por padrão
+                
+                # Adiciona as playlists como botões clicáveis
+                for pl_name in playlists:
+                    btn = ctk.CTkButton(
+                        self.dropdown_list_frame,
+                        text=pl_name,
+                        anchor="w",
+                        fg_color="transparent",
+                        text_color="#FFFFFF",
+                        hover_color="#333333",
+                        height=28,
+                        command=lambda n=pl_name: self.select_playlist(n)
+                    )
+                    btn.pack(fill="x", padx=2, pady=1)
+                
+                self.select_playlist(playlists[0]) # Seleciona a primeira por padrão
                 self.update_status(f"{len(playlists)} playlists encontradas.")
+                
+                self.update_idletasks()
+                # Ajusta a largura do dropdown_list_frame para corresponder ao seletor
+                self.dropdown_list_frame.configure(width=self.playlist_selector_frame.winfo_width())
             else:
                 self.playlists_options = []
                 self.selected_playlist.set("")
+                self.playlist_display_entry.configure(state="normal")
+                self.playlist_display_entry.delete(0, ctk.END)
+                self.playlist_display_entry.configure(state="readonly")
                 self.update_status("Nenhuma playlist encontrada neste banco de dados.", "orange")
         except Exception as e:
             self.update_status(f"Erro ao carregar playlists: {e}", "red")
             self.selected_playlist.set("")
+            self.playlist_display_entry.configure(state="normal")
+            self.playlist_display_entry.delete(0, ctk.END)
+            self.playlist_display_entry.configure(state="readonly")
+
+    def toggle_playlist_dropdown(self):
+        """Mostra ou esconde o frame rolável de playlists."""
+        # Força atualização do layout para obter coordenadas precisas
+        self.update_idletasks()
+        
+        if self.dropdown_list_frame.winfo_ismapped():
+            self.dropdown_list_frame.place_forget()
+        else:
+            # Posição absoluta do seletor menos a posição absoluta da janela = posição relativa correta
+            x = self.playlist_selector_frame.winfo_rootx() - self.winfo_rootx()
+            y = self.playlist_selector_frame.winfo_rooty() - self.winfo_rooty() + self.playlist_selector_frame.winfo_height()
+            
+            self.dropdown_list_frame.place(x=x, y=y, width=self.playlist_selector_frame.winfo_width())
+            self.dropdown_list_frame.lift() # Garante que o dropdown fique acima de outros widgets
+
+    def hide_playlist_dropdown_on_click(self, event):
+        """Esconde o dropdown se o clique for fora dele ou do botão de toggle."""
+        if self.dropdown_list_frame.winfo_ismapped():
+            # Verifica se o clique foi fora do dropdown_list_frame e do dropdown_arrow_button
+            if not self.dropdown_list_frame.winfo_containing(event.x_root, event.y_root) and \
+               not self.dropdown_arrow_button.winfo_containing(event.x_root, event.y_root):
+                self.dropdown_list_frame.place_forget()
+
+    def select_playlist(self, name):
+        """Atualiza a seleção de playlist com destaque visual."""
+        self.selected_playlist.set(name)
+        self.playlist_display_entry.configure(state="normal")
+        self.playlist_display_entry.delete(0, ctk.END)
+        self.playlist_display_entry.insert(0, name)
+        self.playlist_display_entry.configure(state="readonly")
+        
+        self.dropdown_list_frame.place_forget() # Esconde o dropdown após a seleção
+
+        for widget in self.dropdown_list_frame.winfo_children():
+            if isinstance(widget, ctk.CTkButton):
+                if widget.cget("text") == name:
+                    widget.configure(fg_color="#00E5A3", text_color="#000000")
+                else:
+                    widget.configure(fg_color="transparent", text_color="#FFFFFF")
 
     def perform_import(self):
         db_path = self.engine_db_path.get()
