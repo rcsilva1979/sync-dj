@@ -1,0 +1,81 @@
+# =========================
+
+# NORMALIZAÇÃO DE TEXTO
+
+# =========================
+
+* text=auto
+
+# =========================
+
+# PYTHON - manter LF (padrão universal)
+
+# =========================
+
+*.py text eol=lf
+
+# =========================
+
+# ARQUIVOS DE TEXTO COMUNS
+
+# =========================
+
+*.md text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
+*.csv text eol=lf
+*.xml text eol=lf
+
+# =========================
+
+# SHELL / CONFIG
+
+# =========================
+
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# =========================
+
+# WINDOWS (se usar)
+
+# =========================
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# =========================
+
+# BINÁRIOS (NUNCA MODIFICAR)
+
+# =========================
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.zip binary
+*.exe binary
+*.dll binary
+*.af binary
+*.svg binary
+
+# =========================
+
+# DATABASE (TRATAR COMO BINÁRIO)
+
+# =========================
+
+*.db binary
+*.sqlite binary
+
+# =========================
+
+# LOGS (SEM DIFF)
+
+# =========================
+
+*.log -diff

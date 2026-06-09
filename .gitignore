@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+
+# Backup
+Backup_DB/
+*.zip
+
+#ARTES
+ARTES/
+
+#SCRIPTS AUXILIARES
+SCRIPTS_AUXILIARES
+
+# Logs / Reports
+Reports/
+*.log
+
+# Cache específico
+*/__pycache__/
+
+# Ambiente
+.env
+venv/
+
