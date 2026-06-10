@@ -749,13 +749,3 @@ class SyncManager:
             return novas_musicas, apagadas_musicas
         finally:
             conn.close()
-
-if __name__ == "__main__":
-    # Agora o engine_sync_app.py lança automaticamente a interface gráfica
-    try:
-        from engine_gui import EngineSyncApp
-        app = EngineSyncApp()
-        app.mainloop()
-    except ImportError:
-        print("Erro: Não foi possível carregar a interface gráfica (engine_gui.py).")
-        print("Certifique-se de que todos os arquivos estão na mesma pasta.")

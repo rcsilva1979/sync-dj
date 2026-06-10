@@ -71,10 +71,10 @@ class PopUpAtualizacao(ctk.CTkToplevel):
 # ================= INTERFACE GRÁFICA =================
 ctk.set_appearance_mode("Dark")
 
-class EngineSyncApp(ctk.CTk):
-    def __init__(self):
-        super().__init__()
-        
+class EngineSyncApp(ctk.CTkToplevel):
+    def __init__(self, master=None):
+        super().__init__(master)
+
         self.lang = get_system_lang()
         self.txt = STRINGS[self.lang]
         
@@ -83,6 +83,11 @@ class EngineSyncApp(ctk.CTk):
         self.resizable(False, False)
         
         self.configure(fg_color="#242424")
+
+        # Comportamento de Janela Modal
+        if master:
+            self.transient(master)
+            self.grab_set()
         
         if os.name == 'nt':
             try:
@@ -260,33 +265,6 @@ class EngineSyncApp(ctk.CTk):
             command=self.salvar_config_ui
         )
         self.chk_debug.pack(side="right", padx=(5, 10))
-
-        # ===== BOTÃO SYNC VDJ (Canto inferior esquerdo) =====
-        self.btn_sync_vdj = ctk.CTkButton(
-            frame_debug,
-            text="Sync VDJ",
-            width=70,
-            height=20,
-            font=ctk.CTkFont(size=10, weight="bold"),
-            fg_color="transparent",
-            text_color="#00E5A3",
-            hover_color="#00b37e",
-            anchor="w",
-            command=self.abrir_sync_vdj
-        )
-        self.btn_sync_vdj.pack(side="left", padx=(5, 0))
-
-    def abrir_sync_vdj(self):
-        """Abre a interface Sync VDJ como uma janela sobreposta."""
-        try:
-            from Sync_VDJ.vdj_gui import VirtualDJWindow
-            # Se a janela já estiver aberta, apenas foca nela
-            if hasattr(self, "vdj_window") and self.vdj_window.winfo_exists():
-                self.vdj_window.focus()
-            else:
-                self.vdj_window = VirtualDJWindow(self, self.txt)
-        except ImportError as e:
-            messagebox.showerror("Erro", f"Erro ao carregar a interface VDJ.\n\nVerifique se a pasta 'Sync_VDJ' e os arquivos internos estão corretos.\n\nDetalhe técnico: {e}")
 
     def validar_campos(self, *args):
         """Habilita ou desabilita o botão de sincronização baseado no preenchimento dos caminhos."""
@@ -566,5 +544,7 @@ class EngineSyncApp(ctk.CTk):
         messagebox.showinfo(title=titulo_msg, message=self.txt["success_msg"].format(novas=novas_musicas, apagadas=apagadas_musicas))
 
 if __name__ == "__main__":
-    app = EngineSyncApp()
+    app = ctk.CTk() # Apenas para testes isolados
+    EngineSyncApp(app)
+    app.mainloop()
     app.mainloop()
