@@ -1,4 +1,5 @@
 import os
+import sys
 import csv
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
@@ -6,14 +7,26 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from pathlib import Path
 
+# Importação do utilitário de caminho
+if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
+    sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from engine_sync_app import get_resource_path
+from constants import STRINGS, get_system_lang
+
 class CSVToVDJConverter(ctk.CTk):
     def __init__(self):
         super().__init__()
-
-        self.title("Engine DJ CSV to Virtual DJ XML Converter")
+        self.txt = STRINGS[get_system_lang()]
+        self.title(self.txt.get("csv_converter_title", "Engine DJ CSV to Virtual DJ XML Converter"))
         self.geometry("600x400")
         self.resizable(False, False)
         ctk.set_appearance_mode("Dark")
+
+        # Configuração de Ícone
+        self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
+        if sys.platform.startswith('win') and os.path.exists(self.caminho_icone):
+            try: self.iconbitmap(self.caminho_icone)
+            except: pass
 
         # Variáveis
         self.csv_path = ctk.StringVar()
@@ -58,7 +71,7 @@ class CSVToVDJConverter(ctk.CTk):
     def select_csv(self):
         path = filedialog.askopenfilename(filetypes=[("Arquivo CSV", "*.csv")])
         if path:
-            self.csv_path.set(path)
+            self.csv_path.set(path) # type: ignore
             self.log(f"CSV selecionado: {path}")
 
     def time_to_seconds(self, time_str):
@@ -73,7 +86,7 @@ class CSVToVDJConverter(ctk.CTk):
 
     def process_conversion(self):
         csv_file = self.csv_path.get()
-        if not csv_file or not os.path.exists(csv_file):
+        if not csv_file or not os.path.exists(csv_file): # type: ignore
             messagebox.showerror("Erro", "Selecione um arquivo CSV válido.")
             return
 
@@ -133,12 +146,12 @@ class CSVToVDJConverter(ctk.CTk):
             with open(output_path, "wb") as f:
                 f.write(pretty_xml.encode("UTF-8"))
 
-            self.log(f"Sucesso! {count} músicas convertidas.")
-            messagebox.showinfo("Sucesso", f"Playlist XML gerada com sucesso!\n{count} músicas processadas.")
+            self.log(self.txt.get("success_tracks_converted", "Sucesso! {count} músicas convertidas.").format(count=count))
+            messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("success_xml_generated", "Playlist XML gerada com sucesso!\n{count} músicas processadas.").format(count=count))
 
         except Exception as e:
             self.log(f"ERRO: {str(e)}")
-            messagebox.showerror("Erro na Conversão", f"Ocorreu um erro ao processar o CSV:\n{str(e)}")
+            messagebox.showerror(self.txt.get("error_conversion_title", "Erro na Conversão"), self.txt.get("error_processing_csv", "Ocorreu um erro ao processar o CSV:\n{error}").format(error=e))
 
 if __name__ == "__main__":
     app = CSVToVDJConverter()

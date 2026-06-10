@@ -61,6 +61,12 @@ def versao_maior(versao_nova: str, versao_atual: str) -> bool:
 #PEGA LINGUAGEM DO SISTEMA
 def get_system_lang():
     """Detecta o idioma do sistema e retorna o código correspondente."""
+    # --- INICIO: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
+    # Altere o valor abaixo para "pt", "en" ou "es" para forçar o idioma
+    forced_lang = "en" 
+    if forced_lang in STRINGS:
+        return forced_lang
+    # --- FIM: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
     try:
         if sys.platform.startswith('win'):
             import ctypes
@@ -573,11 +579,11 @@ class SyncManager:
             
             tracks_orfas = []  # tracks que existem no banco mas nao no disco — inicializa sempre
 
-            cursor.execute("SELECT id FROM Playlist WHERE title = ? AND parentListId = 0", (nome_colecao,))
+            cursor.execute("SELECT id FROM Playlist WHERE title = ? AND (parentListId = 0 OR parentListId IS NULL)", (nome_colecao,))
             row = cursor.fetchone() # type: ignore
 
             if not row: # type: ignore
-                cursor.execute("SELECT id FROM Playlist WHERE parentListId = 0 AND nextListId = 0")
+                cursor.execute("SELECT id FROM Playlist WHERE (parentListId = 0 OR parentListId IS NULL) AND nextListId = 0")
                 last_root = cursor.fetchone() # type: ignore
                 cursor.execute("INSERT INTO Playlist (title, parentListId, isPersisted, nextListId, lastEditTime, isExplicitlyExported) VALUES (?, 0, 1, 0, ?, 1)", (nome_colecao, lastEditTime_iso))
                 my_collection_id = cursor.lastrowid

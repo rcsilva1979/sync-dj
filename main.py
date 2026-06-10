@@ -19,7 +19,7 @@ class LauncherHub(ctk.CTk):
         self.configure(fg_color="#1a1a1a")
 
         # Configuração de Ícone
-        self.caminho_icone = get_resource_path("sync_icon.ico")
+        self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
         if sys.platform.startswith('win') and os.path.exists(self.caminho_icone):
             try: self.iconbitmap(self.caminho_icone)
             except: pass
@@ -38,13 +38,13 @@ class LauncherHub(ctk.CTk):
             lbl_title = ctk.CTkLabel(self, text="ENGINE DJ TOOLS", font=ctk.CTkFont(size=24, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(30, 20))
 
-        lbl_subtitle = ctk.CTkLabel(self, text="Selecione a ferramenta desejada:", font=ctk.CTkFont(size=14))
+        lbl_subtitle = ctk.CTkLabel(self, text=self.txt["select_tool_prompt"], font=ctk.CTkFont(size=14))
         lbl_subtitle.pack(pady=(0, 30))
 
         # Botão 1: Mirror Sync (Antigo EngineSyncApp)
         self.btn_mirror = ctk.CTkButton(
             self, 
-            text="Mirror Sync (Pasta → Engine DJ)",
+            text=self.txt["mirror_sync_btn"],
             font=ctk.CTkFont(size=15, weight="bold"),
             height=60, width=400,
             fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e",
@@ -55,7 +55,7 @@ class LauncherHub(ctk.CTk):
         # Botão 2: Sync VDJ (Integração VirtualDJ)
         self.btn_vdj = ctk.CTkButton(
             self, 
-            text="Sync VDJ (Engine ⟷ VirtualDJ)",
+            text=self.txt["sync_vdj_btn"],
             font=ctk.CTkFont(size=15, weight="bold"),
             height=60, width=400,
             fg_color="#D84343", text_color="#FFFFFF", hover_color="#CE2323",
@@ -67,7 +67,7 @@ class LauncherHub(ctk.CTk):
         lbl_footer.pack(side="bottom", pady=10)
 
     def abrir_mirror_sync(self):
-        EngineSyncApp(self)
+        EngineSyncApp(self, self.txt) # Passa a instância do LauncherHub e as strings de texto
 
     def abrir_sync_vdj(self):
         VirtualDJWindow(self, self.txt)

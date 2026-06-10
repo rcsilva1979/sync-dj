@@ -9,17 +9,18 @@ def get_playlists_from_db(db_path):
     try:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT id, title FROM Playlist WHERE parentListId = 0 AND isPersisted = 1").fetchall()
+        # Busca playlists de raiz (parentListId 0 ou NULL) que estejam persistidas
+        rows = conn.execute("SELECT id, title FROM Playlist WHERE (parentListId = 0 OR parentListId IS NULL) AND isPersisted = 1").fetchall()
         conn.close()
         return [r["title"] for r in rows]
     except Exception:
         return []
  
-def get_tracks_from_playlist(db_path, playlist_name=None, playlist_id=None):
+def get_tracks_from_playlist(db_path, playlist_name):
     """
-    Retorna uma lista de dicionários com os detalhes das faixas de uma playlist específica (por nome ou ID).
+    Retorna uma lista de dicionários com os detalhes das faixas de uma playlist específica.
     """
-    if not db_path or not os.path.exists(db_path) or (not playlist_name and playlist_id is None):
+    if not db_path or not os.path.exists(db_path) or not playlist_name:
         return []
     
     tracks_info = []
@@ -28,14 +29,11 @@ def get_tracks_from_playlist(db_path, playlist_name=None, playlist_id=None):
         conn.row_factory = sqlite3.Row
         
         # Encontra o ID da playlist pelo título
-        if playlist_id is not None:
-            playlist_row = {"id": playlist_id}
-        else:
-            cursor = conn.execute("SELECT id FROM Playlist WHERE title = ? AND isPersisted = 1", (playlist_name,))
-            playlist_row = cursor.fetchone()
+        cursor = conn.execute("SELECT id FROM Playlist WHERE title = ? AND isPersisted = 1", (playlist_name,))
+        playlist_row = cursor.fetchone()
         
         if playlist_row:
-            p_id = playlist_row["id"]
+            playlist_id = playlist_row["id"]
             
             # O Engine DJ armazena caminhos relativos à pasta "Engine Library"
             # O banco m.db fica em: .../Engine Library/Database2/m.db
@@ -48,7 +46,7 @@ def get_tracks_from_playlist(db_path, playlist_name=None, playlist_id=None):
                 JOIN Track T ON PE.trackId = T.id
                 WHERE PE.listId = ?
                 ORDER BY PE.id ASC
-            """, (p_id,))
+            """, (playlist_id,))
 
             for row in cursor.fetchall():
                 track_data = dict(row)
@@ -76,7 +74,8 @@ def get_database_uuid(db_path):
 
 def get_all_playlists_hierarchical(db_path):
     """
-    Retorna uma lista de tuplas (caminho_hierárquico, id_da_playlist).
+    Retorna uma lista de strings, onde cada string é o caminho hierárquico completo
+    de uma playlist (ex: "Root Playlist / Sub-Playlist / Minha Playlist").
     """
     if not db_path or not os.path.exists(db_path):
         return []
@@ -85,38 +84,31 @@ def get_all_playlists_hierarchical(db_path):
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         
-        # Busca TODAS as playlists para garantir que o mapa de hierarquia esteja completo,
-        # mesmo que alguns nós intermediários não estejam marcados como persistidos.
-        all_rows = conn.execute("SELECT id, title, parentListId, isPersisted FROM Playlist").fetchall()
-        nodes_map = {row["id"]: row for row in all_rows}
+        # Busca todas as playlists persistidas
+        rows = conn.execute("SELECT id, title, parentListId FROM Playlist WHERE isPersisted = 1").fetchall()
+        
+        # Cria um dicionário para busca rápida por ID
+        playlists_by_id = {row["id"]: row for row in rows}
         
         def build_full_path(playlist_id):
             path_parts = []
-            curr_id = playlist_id
-            depth = 0
-            # Percorre a árvore para cima até a raiz (parentListId=0 ou nó inexistente)
-            while curr_id != 0 and curr_id in nodes_map and depth < 20:
-                node = nodes_map[curr_id]
-                title = node["title"] if node["title"] else "Untitled"
-                path_parts.append(title.strip())
-                curr_id = node["parentListId"]
-                depth += 1
-            
-            if not path_parts: return ""
+            current_id = playlist_id
+            while current_id != 0 and current_id in playlists_by_id:
+                playlist = playlists_by_id[current_id]
+                path_parts.append(playlist["title"])
+                current_id = playlist["parentListId"]
             return " / ".join(reversed(path_parts))
-
-        all_results = []
-        for row in all_rows:
-            # Apenas adicionamos à lista final as playlists que o Engine DJ exibe para o usuário
-            if row["isPersisted"] == 1 and row["title"]:
-                path = build_full_path(row["id"])
-                if path:
-                    all_results.append((path, row["id"]))
         
-        all_results.sort(key=lambda x: x[0])
+        all_paths_with_ids = []
+        for playlist_id in playlists_by_id:
+            full_path = build_full_path(playlist_id)
+            if full_path: # Garante que o caminho não seja vazio
+                all_paths_with_ids.append((full_path, playlist_id))
+        
+        all_paths_with_ids.sort(key=lambda x: x[0]) # Ordena alfabeticamente pelo caminho completo
         
         conn.close()
-        return all_results
+        return all_paths_with_ids
     except Exception as e:
         print(f"Erro ao obter playlists com caminhos hierárquicos: {e}")
         return []

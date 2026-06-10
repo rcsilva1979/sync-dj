@@ -15,15 +15,13 @@ from database_utils import get_tracks_from_playlist, localizar_bancos_dados_engi
 from engine_sync_app import get_resource_path
 from Sync_VDJ.vdj_logic import VDJManager
 
-ALL_DBS_LABEL = ">>> TODOS OS BANCOS LOCALIZADOS <<<"
-
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
         super().__init__(master)
         self.txt = txt_strings
         self.master = master # Mantém uma referência à janela pai, se necessário
 
-        self.title(self.txt.get("vdj_import_btn", "Exportar Playlist do Engine para o VDJ"))
+        self.title(self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"))
         self.geometry("600x500") 
         self.resizable(False, False)
         self.configure(fg_color="#242424")
@@ -32,6 +30,17 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.transient(master)   # Vincula esta janela à janela pai (Sync VDJ)
         self.grab_set()          # Restaura o modo modal para a janela ficar sempre no topo e focar
         self.after(10, self.lift)
+
+        # Configuração de Ícone
+        self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
+        if sys.platform.startswith('win'):
+            if os.path.exists(self.caminho_icone):
+                def aplicar_icone():
+                    try:
+                        self.iconbitmap(self.caminho_icone)
+                        self.wm_iconbitmap(self.caminho_icone)
+                    except: pass
+                self.after(200, aplicar_icone)
 
         self.selected_playlist = ctk.StringVar()
         self.target_vdj_path = ctk.StringVar()
@@ -44,8 +53,8 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.build_ui()
         
         # Carrega automaticamente as playlists de TODOS os bancos localizados
-        if self.found_databases:
-            self.load_playlists_from_db(ALL_DBS_LABEL)
+        if self.found_databases: # type: ignore
+            self.load_playlists_from_db(self.txt.get("all_dbs_label", ">>> TODOS OS BANCOS LOCALIZADOS <<<"))
 
     def build_ui(self):
         img_carregada = False
@@ -62,22 +71,23 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             pass
             
         if not img_carregada:
-            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_import_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=18, weight="bold"), text_color="#00E5A3")
+            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=18, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(20, 10))
         else:
             # Se o logo for carregado, o título pode ter um padding menor ou fonte ligeiramente menor
-            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_import_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E5A3")
+            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(5, 10))
 
-        # Informativo de bancos localizados (Substitui a seleção manual)
-        self.lbl_db_info = ctk.CTkLabel(self, text=f"Bancos Engine detectados: {len(self.found_databases)}", font=ctk.CTkFont(size=12, slant="italic"), text_color="#00E5A3")
+        # Informativo de bancos localizados
+        dbs_info = " | ".join([os.path.splitdrive(d)[0] for d in self.found_databases])
+        self.lbl_db_info = ctk.CTkLabel(self, text=self.txt.get("dbs_found_label", "Bancos de Dados Engine DJ Localizados:").format(dbs_info=dbs_info), font=ctk.CTkFont(size=11), text_color="#00E5A3")
         self.lbl_db_info.pack(pady=(5, 5))
 
         # Frame para seleção da playlist
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")
         playlist_frame.pack(padx=20, pady=10, fill="x")
 
-        lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("playlist_label", "Selecionar Playlist (Caminho Completo):"), font=ctk.CTkFont(weight="bold"))
+        lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("select_playlist_full_path", "Selecionar Playlist (Caminho Completo):"), font=ctk.CTkFont(weight="bold"))
         lbl_playlist.pack(anchor="w")
 
         # Seletor de playlist usando ComboBox padrão (estável e com rolagem nativa)
@@ -94,7 +104,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         target_frame = ctk.CTkFrame(self, fg_color="transparent")
         target_frame.pack(padx=20, pady=10, fill="x")
 
-        lbl_target = ctk.CTkLabel(target_frame, text="Destino no Virtual DJ:", font=ctk.CTkFont(weight="bold"))
+        lbl_target = ctk.CTkLabel(target_frame, text=self.txt.get("vdj_target_label", "Destino no Virtual DJ:"), font=ctk.CTkFont(weight="bold"))
         lbl_target.pack(anchor="w")
 
         # Obtém as pastas MyLists/My List automaticamente
@@ -117,7 +127,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         # Botão de Importar
         btn_import = ctk.CTkButton(
             self,
-            text=self.txt.get("vdj_import_btn", "Importar Playlist Selecionada"),
+            text=self.txt.get("vdj_export_btn", "Importar Playlist Selecionada"),
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color="#00E5A3",
             text_color="#000000",
@@ -131,7 +141,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         # Botão para Exportar informações da Playlist do Engine DJ
         btn_export_info = ctk.CTkButton(
             self,
-            text="Exportar Info da Playlist (Engine)",
+            text=self.txt.get("export_engine_info_btn", "Exportar Info da Playlist (Engine)"),
             font=ctk.CTkFont(size=14, weight="bold"),
             fg_color="#555555",
             text_color="#FFFFFF",
@@ -149,10 +159,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
 
     def load_playlists_from_db(self, db_path):
         if not db_path:
-            return
+            return # type: ignore
             
-        if db_path != ALL_DBS_LABEL and not os.path.exists(db_path):
-            self.update_status("Erro: Arquivo de banco de dados não encontrado.", "red")
+        if db_path != self.txt.get("all_dbs_label", ">>> TODOS OS BANCOS LOCALIZADOS <<<") and not os.path.exists(db_path):
+            self.update_status(self.txt.get("error_db_file_not_found_vdj_export", "Erro: Arquivo de banco de dados não encontrado."), "red")
             self.selected_playlist.set("")
             return
 
@@ -160,7 +170,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.playlist_db_map = defaultdict(list)
             
             # Define quais bancos carregar
-            paths_to_load = self.found_databases if db_path == ALL_DBS_LABEL else [db_path]
+            paths_to_load = self.found_databases if db_path == self.txt.get("all_dbs_label", ">>> TODOS OS BANCOS LOCALIZADOS <<<") else [db_path]
             
             for path in paths_to_load:
                 if not os.path.exists(path):
@@ -168,56 +178,56 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
                 
                 # Obtém todas as playlists (incluindo subpastas) em formato de tupla (caminho, id)
                 results = get_all_playlists_hierarchical(path)
-                for pl_path, pl_id in results:
+                for pl_path, _pl_id in results: # pl_id não é usado diretamente aqui, mas o pl_path é o que precisamos para get_tracks_from_playlist
                     # Usamos o caminho hierárquico puro como chave para agrupar playlists de discos diferentes
-                    self.playlist_db_map[pl_path].append((path, pl_id))
+                    self.playlist_db_map[pl_path].append((path, pl_path)) # Armazena o caminho hierárquico como nome da playlist
 
             all_playlists_display = sorted(list(self.playlist_db_map.keys()))
 
             # Atualiza UUID ou status de multi-banco
-            self.update_status(f"Modo Multi-Banco ativo ({len(paths_to_load)} discos).")
+            self.update_status(self.txt.get("multi_db_mode_active", "Modo Multi-Banco ativo ({count} discos).").format(count=len(paths_to_load)))
             
             if all_playlists_display:
                 self.playlists_options = all_playlists_display
                 self.combo_playlist.configure(values=all_playlists_display, state="normal")
                 self.selected_playlist.set(all_playlists_display[0])
-                self.update_status(f"{len(all_playlists_display)} playlists carregadas.")
+                self.update_status(self.txt.get("playlists_loaded_count", "{count} playlists carregadas.").format(count=len(all_playlists_display)))
             else:
                 self.playlists_options = []
                 self.combo_playlist.configure(values=[], state="disabled")
                 self.selected_playlist.set("")
-                self.update_status("Nenhuma playlist encontrada.", "orange")
+                self.update_status(self.txt.get("no_playlists_found_generic", "Nenhuma playlist encontrada."), "orange")
         except Exception as e:
-            self.update_status(f"Erro ao carregar playlists: {e}", "red")
+            self.update_status(self.txt.get("error_loading_playlists_vdj_export", "Erro ao carregar playlists: {error}").format(error=e), "red")
             self.combo_playlist.configure(values=[], state="disabled")
             self.selected_playlist.set("")
 
     def perform_import(self):
         display_name = self.selected_playlist.get()
-        sources = self.playlist_db_map.get(display_name)
+        sources = self.playlist_db_map.get(display_name) # type: ignore
         dest_path = self.target_vdj_path.get()
 
-        if not sources:
-            messagebox.showerror("Erro", "Por favor, selecione uma playlist para importar.")
+        if not sources: # type: ignore
+            messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("error_select_playlist_to_import_vdj", "Por favor, selecione uma playlist para importar."))
             return
 
-        if not dest_path:
-            messagebox.showerror("Erro", "Pasta de destino do VirtualDJ não identificada.")
+        if not dest_path: # type: ignore
+            messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("error_vdj_dest_not_found", "Pasta de destino do VirtualDJ não identificada."))
             return
 
         num_fontes = len(sources)
-        msg_hibrida = f" (Playlist Híbrida detectada em {num_fontes} discos)" if num_fontes > 1 else ""
+        hybrid_msg = self.txt.get("hybrid_playlist_detected_msg", " (Playlist Híbrida detectada em {num_drives} discos)").format(num_drives=num_fontes) if num_fontes > 1 else ""
         
-        try:
-            self.update_status(f"Coletando faixas de '{display_name}'...", "blue")
+        try: # type: ignore
+            self.update_status(self.txt.get("status_collecting_tracks_vdj", "Coletando faixas de '{playlist_name}'...").format(playlist_name=display_name), "blue")
             
             all_tracks = []
-            for db_path, pl_id in sources:
-                tracks = get_tracks_from_playlist(db_path, playlist_id=pl_id)
+            for db_path, pl_name_for_get_tracks in sources: # type: ignore
+                tracks = get_tracks_from_playlist(db_path, playlist_name=pl_name_for_get_tracks)
                 all_tracks.extend(tracks)
 
             if not all_tracks:
-                self.update_status(f"Nenhuma faixa encontrada em '{display_name}'.", "orange")
+                self.update_status(self.txt.get("no_tracks_found_in_playlist_vdj_export", "Nenhuma faixa encontrada em '{playlist_name}'.").format(playlist_name=display_name), "orange")
                 return
 
             # Cria estrutura XML do Virtual DJ (VirtualFolder)
@@ -254,13 +264,13 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             with open(output_file, "wb") as f:
                 f.write(pretty_xml.encode("UTF-8"))
 
-            self.update_status(f"Sucesso! '{display_name}' exportada.", "green")
-            messagebox.showinfo("Sucesso", f"Playlist exportada para o Virtual DJ!\n{len(all_tracks)} músicas processadas.\n{msg_hibrida}\n\nArquivo: {output_file}")
+            self.update_status(self.txt.get("success_playlist_exported_vdj_status", "Sucesso! '{playlist_name}' exportada.").format(playlist_name=display_name), "green")
+            messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("vdj_export_success_msg_detail", "Playlist exportada para o Virtual DJ!\n{num_tracks} músicas processadas.\n{hybrid_msg}\n\nArquivo: {output_file}").format(num_tracks=len(all_tracks), hybrid_msg=hybrid_msg, output_file=output_file))
             self.destroy() # Fecha a janela após o sucesso
 
-        except Exception as e:
-            self.update_status(f"Erro na exportação: {e}", "red")
-            messagebox.showerror("Erro de Exportação", f"Não foi possível gerar o arquivo XML:\n{e}")
+        except Exception as e: # type: ignore
+            self.update_status(self.txt.get("error_exporting_vdj_generic", "Erro na exportação: {error}").format(error=e), "red")
+            messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_generating_xml_vdj", "Não foi possível gerar o arquivo XML:\n{error}").format(error=e))
 
     def export_engine_playlist_info(self):
         display_name = self.selected_playlist.get()
@@ -268,19 +278,19 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
 
         if not sources:
             messagebox.showerror("Erro", "Por favor, selecione uma playlist válida.")
-            return
+            return # type: ignore
         
-        self.update_status(f"Extraindo informações da playlist '{display_name}'...", "blue")
+        self.update_status(self.txt.get("status_extracting_playlist_info", "Extraindo informações da playlist '{playlist_name}'...").format(playlist_name=display_name), "blue")
         
         all_tracks = []
-        for db_path, pl_id in sources:
+        for db_path, pl_name_for_get_tracks in sources: # type: ignore
             # Agora buscamos pelo ID garantido para cada banco
-            tracks = get_tracks_from_playlist(db_path, playlist_id=pl_id)
+            tracks = get_tracks_from_playlist(db_path, playlist_name=pl_name_for_get_tracks)
             all_tracks.extend(tracks)
 
         if not all_tracks:
-            self.update_status(f"Nenhuma faixa encontrada na playlist '{display_name}'.", "orange")
-            messagebox.showinfo("Exportar", f"Nenhuma faixa encontrada na playlist '{display_name}'.")
+            self.update_status(self.txt.get("no_tracks_found_in_playlist_vdj_export", "Nenhuma faixa encontrada em '{playlist_name}'.").format(playlist_name=display_name), "orange")
+            messagebox.showinfo(self.txt.get("export_title", "Exportar"), self.txt.get("no_tracks_found_in_playlist_vdj_export", "Nenhuma faixa encontrada em '{playlist_name}'.").format(playlist_name=display_name))
             return
 
         try:
@@ -300,14 +310,14 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             with open(output_file_path, 'w', encoding='utf-8') as f:
                 json.dump(all_tracks, f, indent=4, ensure_ascii=False)
 
-            self.update_status(f"Exportadas {len(all_tracks)} faixas de {len(sources)} banco(s).", "green")
+            self.update_status(self.txt.get("exported_tracks_from_dbs_count", "Exportadas {num_tracks} faixas de {num_dbs} banco(s).").format(num_tracks=len(all_tracks), num_dbs=len(sources)), "green")
             messagebox.showinfo(
-                "Exportar",
-                f"Playlist '{display_name}' exportada ({len(all_tracks)} faixas unificadas).\n\nArquivo: {output_file_path}"
+                self.txt.get("export_title", "Exportar"),
+                self.txt.get("success_playlist_info_exported_detail_vdj", "Playlist '{playlist_name}' exportada ({num_tracks} faixas unificadas).\n\nArquivo: {output_file_path}").format(playlist_name=display_name, num_tracks=len(all_tracks), output_file_path=output_file_path)
             )
-        except Exception as e:
-            self.update_status(f"Erro ao exportar informações da playlist: {e}", "red")
-            messagebox.showerror("Erro de Exportação", f"Não foi possível exportar as informações da playlist: {e}")
+        except Exception as e: # type: ignore
+            self.update_status(self.txt.get("error_exporting_playlist_info_vdj", "Erro ao exportar informações da playlist: {error}").format(error=e), "red")
+            messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_exporting_playlist_info_detail", "Não foi possível exportar as informações da playlist: {error}").format(error=e))
 
     def update_status(self, message, color="#AAAAAA"):
         self.lbl_status.configure(text=message, text_color=color)

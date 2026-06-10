@@ -71,23 +71,21 @@ class PopUpAtualizacao(ctk.CTkToplevel):
 # ================= INTERFACE GRÁFICA =================
 ctk.set_appearance_mode("Dark")
 
-class EngineSyncApp(ctk.CTkToplevel):
-    def __init__(self, master=None):
-        super().__init__(master)
-
-        self.lang = get_system_lang()
-        self.txt = STRINGS[self.lang]
+class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
+    def __init__(self, master, txt_strings): # Adicionados master e txt_strings
+        super().__init__(master) # Passa o master para o construtor da classe pai
+        
+        self.txt = txt_strings # Usa as strings passadas
         
         self.title(f"{self.txt['title']} ({VERSAO_ATUAL})") # Adiciona a versão no título da janela
         self.geometry("700x700")  # Altura aumentada para todos os elementos ficarem visíveis
         self.resizable(False, False)
+
+        # Garante que a janela abra na frente e ganhe foco, e seja modal
+        self.transient(master)
+        self.grab_set()
         
         self.configure(fg_color="#242424")
-
-        # Comportamento de Janela Modal
-        if master:
-            self.transient(master)
-            self.grab_set()
         
         if os.name == 'nt':
             try:
@@ -97,30 +95,26 @@ class EngineSyncApp(ctk.CTkToplevel):
             except Exception:
                 pass
 
-        self.caminho_icone = get_resource_path("sync_icon.ico")
-
+        # Configuração de Ícone
+        self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
         if sys.platform.startswith('win'): 
             if os.path.exists(self.caminho_icone):
                 def aplicar_janela_icone():
                     try:
                         self.iconbitmap(self.caminho_icone)
+                        self.wm_iconbitmap(self.caminho_icone) # Adicionado para melhor exibição do ícone no Windows
                     except Exception:
                         pass
                 self.after(200, aplicar_janela_icone)
         
         # Inicializa o backend
         self.manager = SyncManager()
-        
-        # Mapeamento automático: Letra do Drive -> Caminho do m.db
+
+        # Busca automática de bancos de dados Engine
         self.found_databases = self.manager.localizar_bancos_dados()
-        self.dbs_by_drive = {os.path.splitdrive(db)[0].upper(): db for db in self.found_databases}
 
-        self.path_musicas = ctk.StringVar(value=self.manager.config.get("pasta_musicas", ""))
-        self.path_db = ctk.StringVar(value=self.manager.config.get("path_db", ""))
-
-        # Adiciona observadores para validar os campos e habilitar o botão de sync em tempo real
-        self.path_musicas.trace_add("write", self.validar_campos)
-        self.path_db.trace_add("write", self.validar_campos)
+        self.path_musicas = ctk.StringVar(value=self.manager.config.get("pasta_musicas", "")) # Mantém para estado interno
+        self.path_db = ctk.StringVar(value=self.manager.config.get("path_db", "")) # Mantém para estado interno
 
         self.fazer_backup = ctk.BooleanVar(value=self.manager.config.get("fazer_backup", True))
         self.importar_hotcue = ctk.BooleanVar(value=False)
@@ -130,8 +124,13 @@ class EngineSyncApp(ctk.CTkToplevel):
         self.debug_ativo = ctk.BooleanVar(value=self.manager.config.get("debug", False))
         self.status_var = ctk.StringVar(value=self.txt["status_idle"])
         
+        # Adiciona observadores para validar os campos e habilitar o botão de sync em tempo real
+        self.path_musicas.trace_add("write", self.validar_campos)
+        # Sempre que a pasta de músicas mudar, tentamos detectar o banco no mesmo disco
+        self.path_musicas.trace_add("write", lambda *args: self.detectar_banco_por_drive())
+
         self.construir_ui()
-        self.carregar_playlists()
+        self.detectar_banco_por_drive() # Tenta localizar o banco e carregar playlists no início
         self.validar_campos() # Validação inicial
         
         # Dispara o espião do GitHub em segundo plano ao abrir o app
@@ -154,10 +153,15 @@ class EngineSyncApp(ctk.CTkToplevel):
         except Exception as e:
             pass
             
-        if not img_carregada:
-            lbl_titulo = ctk.CTkLabel(self, text="ENGINE DJ SYNC", font=ctk.CTkFont(size=24, weight="bold"), text_color="#00E5A3")
+        if not img_carregada: # Fallback se a imagem não carregar
+            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("engine_sync_title", "ENGINE DJ SYNC"), font=ctk.CTkFont(size=24, weight="bold"), text_color="#00E5A3")
             
         lbl_titulo.pack(pady=(25, 5))
+
+        # Informativo de bancos localizados (Geral)
+        dbs_info = " | ".join([os.path.splitdrive(d)[0] for d in self.found_databases])
+        lbl_dbs = ctk.CTkLabel(self, text=self.txt.get("dbs_found_label", "Bancos de Dados Engine DJ Localizados:").format(dbs_info=dbs_info), font=ctk.CTkFont(size=11), text_color="#00E5A3")
+        lbl_dbs.pack(pady=(0, 5))
 
         frame_config = ctk.CTkFrame(self)
         frame_config.pack(padx=30, pady=(10, 8), fill="x")
@@ -171,9 +175,9 @@ class EngineSyncApp(ctk.CTkToplevel):
         btn_pasta = ctk.CTkButton(frame_config, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(weight="bold"), command=self.procurar_pasta)
         btn_pasta.grid(row=1, column=1, padx=(0, 20), pady=(0, 8), sticky="w")
 
-        # Informativo de bancos localizados
-        lbl_info_db = ctk.CTkLabel(frame_config, text=self.txt["dbs_found"].format(count=len(self.found_databases)), font=ctk.CTkFont(size=11, slant="italic"), text_color="#00E5A3")
-        lbl_info_db.grid(row=2, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
+        # Label Informativo de Banco de Dados Detectado (Substitui a seleção manual)
+        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(size=12, slant="italic"), text_color="#AAAAAA")
+        self.lbl_db_auto.grid(row=2, column=0, columnspan=2, padx=(25, 15), pady=(0, 8), sticky="w")
 
         lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(weight="bold"))
         lbl_playlist.grid(row=3, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
@@ -240,7 +244,7 @@ class EngineSyncApp(ctk.CTkToplevel):
 
         self.chk_log = ctk.CTkCheckBox(
             frame_debug,
-            text="LOG",
+            text=self.txt.get("log_checkbox", "LOG"),
             variable=self.log_ativo,
             width=60,
             checkbox_width=14,
@@ -254,7 +258,7 @@ class EngineSyncApp(ctk.CTkToplevel):
 
         self.chk_debug = ctk.CTkCheckBox(
             frame_debug,
-            text="DEBUG",
+            text=self.txt.get("debug_checkbox", "DEBUG"),
             variable=self.debug_ativo,
             width=80,
             checkbox_width=14,
@@ -265,6 +269,57 @@ class EngineSyncApp(ctk.CTkToplevel):
             command=self.salvar_config_ui
         )
         self.chk_debug.pack(side="right", padx=(5, 10))
+
+    def detectar_banco_por_drive(self):
+        """Localiza o m.db automaticamente no mesmo disco da pasta de músicas."""
+        pasta = self.path_musicas.get()
+        db_from_config = self.manager.config.get("path_db", "")
+        
+        banco_alvo = None
+        drive_musica = None
+
+        # Prioridade 1: Banco no mesmo drive da pasta de músicas
+        if pasta and os.path.exists(pasta):
+            drive_musica = os.path.splitdrive(os.path.abspath(pasta))[0].upper()
+            for b in self.found_databases:
+                if os.path.splitdrive(b)[0].upper() == drive_musica:
+                    banco_alvo = b
+                    break
+        
+        # Prioridade 2: Banco salvo na configuração (se for válido e não foi encontrado no drive da música)
+        if not banco_alvo and db_from_config and os.path.exists(db_from_config):
+            banco_alvo = db_from_config
+        
+        # Prioridade 3: Primeiro banco encontrado na lista geral (se nenhum dos anteriores foi selecionado)
+        if not banco_alvo and self.found_databases:
+            banco_alvo = self.found_databases[0]
+
+        if banco_alvo and os.path.exists(banco_alvo):
+            self.path_db.set(banco_alvo) # Define o caminho do banco
+            self.salvar_config_ui() # Salva a configuração para persistir o banco encontrado
+            
+            # Atualiza a exibição do label com UUID
+            uuid = get_database_uuid(banco_alvo)
+            if uuid:
+                self.lbl_db_auto.configure(text=f"✔ Banco de dados Engine DJ: {os.path.basename(banco_alvo)} [{uuid}]", text_color="#00E5A3")
+            else:
+                self.lbl_db_auto.configure(text=f"✔ Banco de dados Engine DJ: {os.path.basename(banco_alvo)}", text_color="#00E5A3")
+        else: # Nenhum banco válido encontrado
+            self.path_db.set("") # Limpa o caminho do banco
+            self.salvar_config_ui() # Salva a configuração (com path_db vazio)
+
+            if drive_musica:
+                self.lbl_db_auto.configure(
+                    text=self.txt.get("error_no_db_on_drive", "Erro: Banco de Dados não encontrado no disco {drive}").format(drive=drive_musica),
+                    text_color="#FF5555"
+                )
+            else:
+                self.lbl_db_auto.configure(
+                    text=self.txt.get("db_file", "Banco de Dados (m.db):") + " " + self.txt.get("not_found", "Não localizada"),
+                    text_color="#FF5555"
+                )
+        
+        self.carregar_playlists() # Always call carregar_playlists after attempting to set db_path
 
     def validar_campos(self, *args):
         """Habilita ou desabilita o botão de sincronização baseado no preenchimento dos caminhos."""
@@ -300,46 +355,33 @@ class EngineSyncApp(ctk.CTkToplevel):
 
         return res.strip()
 
-    def on_playlist_changed(self, choice):
-        """Acionado quando o usuário altera manualmente a playlist no ComboBox."""
-        cleaned_choice = self._limpar_nome_playlist(choice)
-
-        pasta_path = self.path_musicas.get()
-        if pasta_path:
-            folder_name = os.path.basename(os.path.normpath(pasta_path))
-            if cleaned_choice and folder_name and cleaned_choice.lower() != folder_name.lower():
-                if not messagebox.askyesno(self.txt.get("confirm_playlist_title", "Aviso"), 
-                                          self.txt["confirm_playlist_msg"].format(playlist=cleaned_choice, folder=folder_name)):
-                    # Se o usuário cancelar, reverte para o nome da pasta (com ou sem sufixo)
-                    current_options = self.combo_playlist.cget("values")
-                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in current_options}
-                    
-                    if folder_name.lower() in existing_playlists_map:
-                        self.combo_playlist.set(existing_playlists_map[folder_name.lower()])
-                    else:
-                        self.combo_playlist.set(folder_name + self.txt["will_be_created_suffix"])
-        self.salvar_config_ui()
-
     def procurar_pasta(self):
         pasta = filedialog.askdirectory()
         if pasta:
-            # Identifica o disco da pasta selecionada
-            drive = os.path.splitdrive(pasta)[0].upper()
-            db_correspondente = self.dbs_by_drive.get(drive)
-            
-            if not db_correspondente:
-                messagebox.showerror(
-                    "Erro de Drive", 
-                    self.txt["error_no_db_on_drive"].format(drive=drive)
-                )
-                return
-                
-            self.path_musicas.set(os.path.normpath(pasta))
-            self.path_db.set(db_correspondente)
+            self.path_musicas.set(pasta)
             self.salvar_config_ui()
+            # Recarrega as playlists após mudar a pasta, para atualizar o nome padrão
             self.carregar_playlists() 
 
+    def procurar_db(self):
+        arquivo = filedialog.askopenfilename(filetypes=[("Engine DB", "*.db")])
+        if arquivo:
+            arquivo_norm = os.path.normpath(arquivo)
+            self.path_db.set(arquivo_norm)
+            
+            # Atualiza a lista do combo se for um novo local
+            current_values = list(self.combo_db.cget("values"))
+            if arquivo_norm not in current_values:
+                current_values.insert(0, arquivo_norm)
+                self.combo_db.configure(values=current_values)
+
+            self.salvar_config_ui()
+            # Recarrega as playlists após mudar o DB, para refletir as playlists existentes
+            # no novo banco
+            self.carregar_playlists()
+
     def carregar_playlists(self):
+        db_path = self.path_db.get()
         pasta_atual = self.path_musicas.get()
         
         nome_padrao = None
@@ -347,18 +389,7 @@ class EngineSyncApp(ctk.CTkToplevel):
         if pasta_atual and os.path.exists(pasta_atual):
             folder_name_from_path = os.path.basename(os.path.normpath(pasta_atual))
 
-        # Agrega playlists raiz de todos os bancos de dados localizados (C:, D:, etc.)
-        bancos_para_ler = list(self.found_databases)
-        current_db = self.path_db.get()
-        if current_db and current_db not in bancos_para_ler and os.path.exists(current_db):
-            bancos_para_ler.append(current_db)
-
-        todas_playlists = []
-        for db in bancos_para_ler:
-            todas_playlists.extend(get_playlists_from_db(db))
-        
-        # Remove duplicatas (nomes iguais em discos diferentes) e ordena alfabeticamente
-        raw_existing_playlists = sorted(list(set(todas_playlists)))
+        raw_existing_playlists = get_playlists_from_db(db_path)
         
         # Mapeia o nome "limpo" para o nome real do banco para facilitar a busca
         existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in raw_existing_playlists}
@@ -446,8 +477,8 @@ class EngineSyncApp(ctk.CTkToplevel):
                 if not messagebox.askyesno(self.txt.get("confirm_playlist_title", "Aviso"), 
                                           self.txt["confirm_playlist_msg"].format(playlist=cleaned_choice, folder=folder_name)):
                     # Se o usuário cancelar, reverte para o nome da pasta (com ou sem sufixo)
-                    current_options = self.combo_playlist.cget("values")
-                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in current_options}
+                    db_playlists = get_playlists_from_db(self.path_db.get())
+                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in db_playlists}
                     
                     if folder_name.lower() in existing_playlists_map:
                         # Encontra o casing real do banco de dados para o nome da pasta
@@ -542,9 +573,3 @@ class EngineSyncApp(ctk.CTkToplevel):
         # Puxa o título diretamente do dicionário de idiomas
         titulo_msg = self.txt.get("success_title", "Success")
         messagebox.showinfo(title=titulo_msg, message=self.txt["success_msg"].format(novas=novas_musicas, apagadas=apagadas_musicas))
-
-if __name__ == "__main__":
-    app = ctk.CTk() # Apenas para testes isolados
-    EngineSyncApp(app)
-    app.mainloop()
-    app.mainloop()
