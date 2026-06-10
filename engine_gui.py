@@ -145,7 +145,7 @@ class EngineSyncApp(ctk.CTkToplevel):
     def construir_ui(self):
         img_carregada = False
         try:
-            img_caminho = get_resource_path("logo_engine.png")
+            img_caminho = get_resource_path(os.path.join("images", "logo_engine.png"))
             if os.path.exists(img_caminho):
                 imagem_logo = Image.open(img_caminho)
                 ctk_logo = ctk.CTkImage(light_image=imagem_logo, dark_image=imagem_logo, size=(480, 90))

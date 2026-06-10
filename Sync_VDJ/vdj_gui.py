@@ -44,8 +44,12 @@ class VirtualDJWindow(ctk.CTkToplevel):
     def construir_ui(self):
         img_carregada = False
         try:
-            # Como este arquivo está na pasta Sync_VDJ, a logo está no mesmo diretório
-            vdj_logo_path = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "logo_engine_VDJ.png"))
+            # Garante acesso aos utilitários da raiz para localizar imagens
+            if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
+                sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+            from engine_sync_app import get_resource_path
+
+            vdj_logo_path = get_resource_path(os.path.join("images", "logo_engine_VDJ.png"))
             if os.path.exists(vdj_logo_path):
                 imagem_logo = Image.open(vdj_logo_path)
                 ctk_logo = ctk.CTkImage(light_image=imagem_logo, dark_image=imagem_logo, size=(480, 90))
