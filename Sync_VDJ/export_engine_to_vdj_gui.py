@@ -23,7 +23,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.master = master # Mantém uma referência à janela pai, se necessário
 
         self.title(self.txt.get("vdj_import_btn", "Exportar Playlist do Engine para o VDJ"))
-        self.geometry("600x580") #
+        self.geometry("600x500") 
         self.resizable(False, False)
         self.configure(fg_color="#242424")
 
@@ -32,7 +32,6 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.grab_set()          # Restaura o modo modal para a janela ficar sempre no topo e focar
         self.after(10, self.lift)
 
-        self.engine_db_path = ctk.StringVar()
         self.selected_playlist = ctk.StringVar()
         self.target_vdj_path = ctk.StringVar()
         self.playlists_options = []
@@ -40,14 +39,12 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
 
         # Busca automática de bancos de dados
         self.found_databases = localizar_bancos_dados_engine()
-        if self.found_databases:
-            self.engine_db_path.set(self.found_databases[0])
 
         self.build_ui()
         
-        # Se encontrou um banco, já carrega as playlists inicialmente
-        if self.engine_db_path.get():
-            self.load_playlists_from_db(self.engine_db_path.get())
+        # Carrega automaticamente as playlists de TODOS os bancos localizados
+        if self.found_databases:
+            self.load_playlists_from_db(ALL_DBS_LABEL)
 
     def build_ui(self):
         img_carregada = False
@@ -72,37 +69,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_import_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(5, 10))
 
-        # Frame para seleção do banco de dados
-        db_frame = ctk.CTkFrame(self, fg_color="transparent")
-        db_frame.pack(padx=20, pady=10, fill="x")
-
-        self.lbl_db = ctk.CTkLabel(db_frame, text=self.txt.get("db_file", "Banco de Dados (m.db):"), font=ctk.CTkFont(weight="bold"))
-        self.lbl_db.pack(anchor="w")
-
-        db_values = list(self.found_databases)
-        if len(db_values) > 1:
-            db_values.insert(0, ALL_DBS_LABEL)
-
-        # Substituído Entry por ComboBox para busca automática
-        self.combo_db = ctk.CTkComboBox(
-            db_frame,
-            variable=self.engine_db_path,
-            values=db_values,
-            width=350,
-            command=self.load_playlists_from_db
-        )
-        self.combo_db.pack(side="left", fill="x", expand=True, padx=(0, 10))
-
-        btn_browse_db = ctk.CTkButton(
-            db_frame,
-            text=self.txt.get("browse", "Procurar"),
-            width=100,
-            fg_color="#00E5A3",
-            text_color="#000000",
-            hover_color="#00b37e",
-            command=self.browse_engine_db
-        )
-        btn_browse_db.pack(side="right")
+        # Informativo de bancos localizados (Substitui a seleção manual)
+        self.lbl_db_info = ctk.CTkLabel(self, text=f"Bancos Engine detectados: {len(self.found_databases)}", font=ctk.CTkFont(size=12, slant="italic"), text_color="#00E5A3")
+        self.lbl_db_info.pack(pady=(5, 5))
 
         # Frame para seleção da playlist
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -178,26 +147,6 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
 
-    def browse_engine_db(self):
-        db_path = filedialog.askopenfilename(
-            title=self.txt.get("db_file", "Selecionar Banco de Dados Engine DJ (m.db)"),
-            filetypes=[("Engine DJ Database", "*.db")]
-        )
-        if db_path:
-            db_path_norm = os.path.normpath(db_path)
-            self.engine_db_path.set(db_path_norm)
-            
-            # Atualiza a lista do combo se o usuário selecionou um local novo manualmente
-            current_values = list(self.combo_db.cget("values"))
-            if db_path_norm not in current_values:
-                current_values.insert(0, db_path_norm)
-                self.combo_db.configure(values=current_values)
-
-            self.update_status(f"Banco de dados selecionado: {os.path.basename(db_path_norm)}")
-            self.load_playlists_from_db(db_path_norm)
-        else:
-            self.update_status("Seleção de banco de dados cancelada.")
-
     def load_playlists_from_db(self, db_path):
         if not db_path:
             return
@@ -226,11 +175,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             all_playlists_display = sorted(list(self.playlist_db_map.keys()))
 
             # Atualiza UUID ou status de multi-banco
-            if db_path != ALL_DBS_LABEL:
-                uuid = get_database_uuid(db_path)
-                self.lbl_db.configure(text=f"{self.txt.get('db_file', 'Banco de Dados (m.db):')} [{uuid or '?'}]")
-            else:
-                self.lbl_db.configure(text=f"Modo Multi-Banco ({len(paths_to_load)} arquivos)")
+            self.update_status(f"Modo Multi-Banco ativo ({len(paths_to_load)} discos).")
             
             if all_playlists_display:
                 self.playlists_options = all_playlists_display

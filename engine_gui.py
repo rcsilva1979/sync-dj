@@ -333,8 +333,8 @@ class EngineSyncApp(ctk.CTk):
                 if not messagebox.askyesno(self.txt.get("confirm_playlist_title", "Aviso"), 
                                           self.txt["confirm_playlist_msg"].format(playlist=cleaned_choice, folder=folder_name)):
                     # Se o usuário cancelar, reverte para o nome da pasta (com ou sem sufixo)
-                    db_playlists = get_playlists_from_db(self.path_db.get())
-                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in db_playlists}
+                    current_options = self.combo_playlist.cget("values")
+                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in current_options}
                     
                     if folder_name.lower() in existing_playlists_map:
                         self.combo_playlist.set(existing_playlists_map[folder_name.lower()])
@@ -362,7 +362,6 @@ class EngineSyncApp(ctk.CTk):
             self.carregar_playlists() 
 
     def carregar_playlists(self):
-        db_path = self.path_db.get()
         pasta_atual = self.path_musicas.get()
         
         nome_padrao = None
@@ -370,7 +369,18 @@ class EngineSyncApp(ctk.CTk):
         if pasta_atual and os.path.exists(pasta_atual):
             folder_name_from_path = os.path.basename(os.path.normpath(pasta_atual))
 
-        raw_existing_playlists = get_playlists_from_db(db_path)
+        # Agrega playlists raiz de todos os bancos de dados localizados (C:, D:, etc.)
+        bancos_para_ler = list(self.found_databases)
+        current_db = self.path_db.get()
+        if current_db and current_db not in bancos_para_ler and os.path.exists(current_db):
+            bancos_para_ler.append(current_db)
+
+        todas_playlists = []
+        for db in bancos_para_ler:
+            todas_playlists.extend(get_playlists_from_db(db))
+        
+        # Remove duplicatas (nomes iguais em discos diferentes) e ordena alfabeticamente
+        raw_existing_playlists = sorted(list(set(todas_playlists)))
         
         # Mapeia o nome "limpo" para o nome real do banco para facilitar a busca
         existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in raw_existing_playlists}
@@ -458,8 +468,8 @@ class EngineSyncApp(ctk.CTk):
                 if not messagebox.askyesno(self.txt.get("confirm_playlist_title", "Aviso"), 
                                           self.txt["confirm_playlist_msg"].format(playlist=cleaned_choice, folder=folder_name)):
                     # Se o usuário cancelar, reverte para o nome da pasta (com ou sem sufixo)
-                    db_playlists = get_playlists_from_db(self.path_db.get())
-                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in db_playlists}
+                    current_options = self.combo_playlist.cget("values")
+                    existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in current_options}
                     
                     if folder_name.lower() in existing_playlists_map:
                         # Encontra o casing real do banco de dados para o nome da pasta
