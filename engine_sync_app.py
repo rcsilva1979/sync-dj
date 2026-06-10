@@ -433,9 +433,11 @@ class SyncManager:
                     os.makedirs(backup_dir)
 
                 db_folder = os.path.dirname(db_path)
-                
+                # Identifica o disco (ex: C, D) para incluir no nome do backup
+                drive = os.path.splitdrive(db_path)[0].replace(":", "").upper() or "PC"
+
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                backup_name = os.path.join(backup_dir, f"Backup_EngineDJ_{timestamp}")
+                backup_name = os.path.join(backup_dir, f"Backup_Engine_Drive_{drive}_{timestamp}")
                 shutil.make_archive(backup_name, "zip", db_folder) # type: ignore
                 self.log(log_paths, f"[BACKUP] Backup criado: {backup_name}.zip")
             except Exception as e:

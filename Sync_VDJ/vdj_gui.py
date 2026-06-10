@@ -17,6 +17,11 @@ except ImportError:
     # Fallback caso o arquivo tenha sido movido para dentro da pasta Sync_VDJ
     from .export_engine_to_vdj_gui import ImportEngineToVDJWindow
 
+try:
+    from .import_vdj_to_engine_gui import ImportVDJToEngineWindow
+except (ImportError, ValueError):
+    from Sync_VDJ.import_vdj_to_engine_gui import ImportVDJToEngineWindow
+
 class VirtualDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
         super().__init__(master)
@@ -127,4 +132,4 @@ class VirtualDJWindow(ctk.CTkToplevel):
 
     def exportar_vdj_para_engine(self):
         """Placeholder para a lógica de exportação do VDJ para o Engine."""
-        print("Ação: Exportar Playlist do Virtual DJ para o Engine")
+        ImportVDJToEngineWindow(self, self.txt)

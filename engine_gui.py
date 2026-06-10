@@ -105,6 +105,10 @@ class EngineSyncApp(ctk.CTk):
         
         # Inicializa o backend
         self.manager = SyncManager()
+        
+        # Mapeamento automático: Letra do Drive -> Caminho do m.db
+        self.found_databases = self.manager.localizar_bancos_dados()
+        self.dbs_by_drive = {os.path.splitdrive(db)[0].upper(): db for db in self.found_databases}
 
         self.path_musicas = ctk.StringVar(value=self.manager.config.get("pasta_musicas", ""))
         self.path_db = ctk.StringVar(value=self.manager.config.get("path_db", ""))
@@ -162,35 +166,22 @@ class EngineSyncApp(ctk.CTk):
         btn_pasta = ctk.CTkButton(frame_config, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(weight="bold"), command=self.procurar_pasta)
         btn_pasta.grid(row=1, column=1, padx=(0, 20), pady=(0, 8), sticky="w")
 
-        self.lbl_db = ctk.CTkLabel(frame_config, text=self.txt["db_file"], font=ctk.CTkFont(weight="bold"))
-        self.lbl_db.grid(row=2, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
-        
-        # Busca bancos de dados existentes
-        db_list = self.manager.localizar_bancos_dados()
-        current_db = self.path_db.get()
-        if current_db and current_db not in db_list:
-            db_list.insert(0, current_db)
-
-        # Combo para seleção rápida do banco
-        self.combo_db = ctk.CTkComboBox(frame_config, values=db_list, variable=self.path_db, 
-                                        width=450, command=lambda _: self.carregar_playlists())
-        self.combo_db.grid(row=3, column=0, padx=(25, 15), pady=(0, 8), sticky="w")
-        
-        btn_db = ctk.CTkButton(frame_config, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(weight="bold"), command=self.procurar_db)
-        btn_db.grid(row=3, column=1, padx=(0, 20), pady=(0, 8), sticky="w")
+        # Informativo de bancos localizados
+        lbl_info_db = ctk.CTkLabel(frame_config, text=self.txt["dbs_found"].format(count=len(self.found_databases)), font=ctk.CTkFont(size=11, slant="italic"), text_color="#00E5A3")
+        lbl_info_db.grid(row=2, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
 
         lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(weight="bold"))
-        lbl_playlist.grid(row=4, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
+        lbl_playlist.grid(row=3, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
 
         self.combo_playlist = ctk.CTkComboBox(frame_config, width=450, command=self.on_playlist_changed)
-        self.combo_playlist.grid(row=5, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
+        self.combo_playlist.grid(row=4, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
 
         self.check_backup = ctk.CTkCheckBox(frame_config, text=self.txt["backup"], variable=self.fazer_backup, font=ctk.CTkFont(weight="bold"), fg_color="#00E5A3", hover_color="#00b37e", command=self.salvar_config_ui)
-        self.check_backup.grid(row=6, column=0, padx=(25, 15), pady=(0, 4), sticky="w")
+        self.check_backup.grid(row=5, column=0, padx=(25, 15), pady=(0, 4), sticky="w")
 
         estado_hotcue = "normal" if _HOTCUE_DISPONIVEL else "disabled"
         self.check_hotcue = ctk.CTkCheckBox(frame_config, text=self.txt["hotcue"], variable=self.importar_hotcue, font=ctk.CTkFont(weight="bold"), fg_color="#00E5A3", hover_color="#00b37e", state=estado_hotcue, command=self._toggle_hotcue)
-        self.check_hotcue.grid(row=7, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
+        self.check_hotcue.grid(row=6, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
 
         estado_overwrite = "normal" if (_HOTCUE_DISPONIVEL and self.importar_hotcue.get()) else "disabled"
         self.check_hotcue_overwrite = ctk.CTkCheckBox(
@@ -203,7 +194,7 @@ class EngineSyncApp(ctk.CTk):
             state=estado_overwrite,
             command=self.salvar_config_ui
         )
-        self.check_hotcue_overwrite.grid(row=8, column=0, padx=(40, 15), pady=(0, 8), sticky="w")
+        self.check_hotcue_overwrite.grid(row=7, column=0, padx=(40, 15), pady=(0, 8), sticky="w")
         
         self.check_orfas = ctk.CTkCheckBox(
             frame_config, 
@@ -214,7 +205,7 @@ class EngineSyncApp(ctk.CTk):
             hover_color="#00b37e", 
             command=self.salvar_config_ui
         )
-        self.check_orfas.grid(row=9, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
+        self.check_orfas.grid(row=8, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
 
         self.lbl_status = ctk.CTkLabel(self, textvariable=self.status_var, font=ctk.CTkFont(size=14))
         self.lbl_status.pack(pady=(8, 3), fill="x", padx=30)
@@ -354,39 +345,26 @@ class EngineSyncApp(ctk.CTk):
     def procurar_pasta(self):
         pasta = filedialog.askdirectory()
         if pasta:
-            self.path_musicas.set(pasta)
-            self.salvar_config_ui()
-            # Recarrega as playlists após mudar a pasta, para atualizar o nome padrão
-            self.carregar_playlists() 
-
-    def procurar_db(self):
-        arquivo = filedialog.askopenfilename(filetypes=[("Engine DB", "*.db")])
-        if arquivo:
-            arquivo_norm = os.path.normpath(arquivo)
-            self.path_db.set(arquivo_norm)
+            # Identifica o disco da pasta selecionada
+            drive = os.path.splitdrive(pasta)[0].upper()
+            db_correspondente = self.dbs_by_drive.get(drive)
             
-            # Atualiza a lista do combo se for um novo local
-            current_values = list(self.combo_db.cget("values"))
-            if arquivo_norm not in current_values:
-                current_values.insert(0, arquivo_norm)
-                self.combo_db.configure(values=current_values)
-
+            if not db_correspondente:
+                messagebox.showerror(
+                    "Erro de Drive", 
+                    self.txt["error_no_db_on_drive"].format(drive=drive)
+                )
+                return
+                
+            self.path_musicas.set(os.path.normpath(pasta))
+            self.path_db.set(db_correspondente)
             self.salvar_config_ui()
-            # Recarrega as playlists após mudar o DB, para refletir as playlists existentes
-            # no novo banco
-            self.carregar_playlists()
+            self.carregar_playlists() 
 
     def carregar_playlists(self):
         db_path = self.path_db.get()
         pasta_atual = self.path_musicas.get()
         
-        # Atualiza o UUID na interface
-        uuid = get_database_uuid(db_path)
-        if uuid:
-            self.lbl_db.configure(text=f"{self.txt['db_file']} [{uuid}]")
-        else:
-            self.lbl_db.configure(text=self.txt["db_file"])
-
         nome_padrao = None
         folder_name_from_path = None
         if pasta_atual and os.path.exists(pasta_atual):

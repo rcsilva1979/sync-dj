@@ -43,6 +43,8 @@ STRINGS = {
         "confirm_playlist_title": "Confirmar Playlist Raiz",
         "confirm_playlist_msg": "A playlist alvo selecionada ({playlist}) é diferente do nome da pasta ({folder}).\n\nIsso irá REESTRUTURAR a playlist '{playlist}' para espelhar a pasta.\n\nDeseja continuar?",
         "sync_vdj_msg": "Funcionalidade de sincronização com Virtual DJ em desenvolvimento.",
+        "dbs_found": "Bancos Engine localizados: {count}",
+        "error_no_db_on_drive": "Erro: Não foi localizado um banco de dados Engine DJ no disco {drive}.\nCertifique-se de que a pasta 'Engine Library' existe na raiz deste disco.",
         "vdj_back_btn": "Voltar para Sync DJ",
         "vdj_import_btn": "Exportar Playlist do Engine para o VDJ",
         "vdj_export_btn": "Exportar Playlist do VDJ para o Engine"
@@ -86,6 +88,8 @@ STRINGS = {
         "confirm_playlist_title": "Confirm Root Playlist",
         "confirm_playlist_msg": "The selected target playlist ({playlist}) is different from the folder name ({folder}).\n\nThis will RESTRUCTURE the playlist '{playlist}' to mirror the folder.\n\nDo you want to continue?",
         "sync_vdj_msg": "Virtual DJ synchronization feature under development.",
+        "dbs_found": "Engine Databases found: {count}",
+        "error_no_db_on_drive": "Error: No Engine DJ database found on drive {drive}.\nMake sure the 'Engine Library' folder exists on the root of this drive.",
         "vdj_back_btn": "Back to Sync DJ",
         "vdj_import_btn": "Export Engine Playlist to VDJ",
         "vdj_export_btn": "Export VDJ Playlist to Engine"
