@@ -63,7 +63,7 @@ def get_system_lang():
     """Detecta o idioma do sistema e retorna o código correspondente."""
     # --- INICIO: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
     # Altere o valor abaixo para "pt", "en" ou "es" para forçar o idioma
-    forced_lang = "en" 
+    forced_lang = "pt" 
     if forced_lang in STRINGS:
         return forced_lang
     # --- FIM: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
@@ -577,9 +577,10 @@ class SyncManager:
             self.log(log_paths, "")
             self.log(log_paths, "--- FASE 2: Construcao da Arvore de Playlists ---")
             
-            tracks_orfas = []  # tracks que existem no banco mas nao no disco — inicializa sempre
+            tracks_orfas = []
 
-            cursor.execute("SELECT id FROM Playlist WHERE title = ? AND (parentListId = 0 OR parentListId IS NULL)", (nome_colecao,))
+            # Busca a playlist raiz preferindo a que já estiver persistida se houver duplicatas
+            cursor.execute("SELECT id FROM Playlist WHERE title = ? AND (parentListId = 0 OR parentListId IS NULL) ORDER BY isPersisted DESC", (nome_colecao,))
             row = cursor.fetchone() # type: ignore
 
             if not row: # type: ignore
@@ -593,6 +594,11 @@ class SyncManager:
             else:
                 my_collection_id = row[0] # type: ignore
                 self.log(log_paths, f"  [PLAYLIST] Usando playlist existente: '{nome_colecao}' (id={my_collection_id})")
+                
+                # PONTO CHAVE: Força isPersisted=1 e isExplicitlyExported=1. Sem isso, o Engine DJ 
+                # pode ignorar os itens adicionados em Phase 3 se a playlist for considerada "shadow" ou temporária.
+                cursor.execute("UPDATE Playlist SET lastEditTime = ?, isExplicitlyExported = 1, isPersisted = 1 WHERE id = ?", (lastEditTime_iso, my_collection_id))
+
                 cte_query = "WITH RECURSIVE descendants(id) AS (SELECT id FROM Playlist WHERE parentListId = ? UNION ALL SELECT p.id FROM Playlist p INNER JOIN descendants d ON p.parentListId = d.id) SELECT id FROM descendants;"
                 cursor.execute(cte_query, (my_collection_id,))
                 descendants = [r[0] for r in cursor.fetchall()]

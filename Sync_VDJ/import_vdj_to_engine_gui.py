@@ -20,7 +20,7 @@ except (ImportError, ValueError):
     from Sync_VDJ.vdj_logic import VDJManager
 
 class PlaylistContentWindow(ctk.CTkToplevel):
-    def __init__(self, master, title, xml_path):
+    def __init__(self, master, title, xml_paths):
         super().__init__(master)
         self.txt = master.txt
         self.title(self.txt.get("content_title", "Conteúdo:").format(title=title)) # type: ignore
@@ -47,18 +47,24 @@ class PlaylistContentWindow(ctk.CTkToplevel):
         self.textbox.pack(padx=20, pady=10, fill="both", expand=True)
 
         try:
-            tree = ET.parse(xml_path)
-            root = tree.getroot()
-            songs = root.findall("song")
+            total_tracks = 0
+            for xml_path in xml_paths:
+                tree = ET.parse(xml_path)
+                root = tree.getroot()
+                songs = root.findall("song")
+                
+                if songs:
+                    drive = os.path.splitdrive(xml_path)[0] or "PC"
+                    self.textbox.insert("end", f">>> DISCO {drive.upper()} <<<\n")
+                    for song in songs:
+                        total_tracks += 1
+                        path = song.get("path", "N/A")
+                        artist = song.get("artist", "Desconhecido")
+                        title_song = song.get("title", "Sem Título")
+                        self.textbox.insert("end", f"{total_tracks:03d} | {artist} - {title_song}\n      path=\"{path}\"\n\n")
             
-            if not songs:
+            if total_tracks == 0:
                 self.textbox.insert("end", self.txt.get("no_tracks_in_playlist", "Nenhuma música encontrada nesta playlist.")) # type: ignore
-            else:
-                for i, song in enumerate(songs, 1):
-                    path = song.get("path", "N/A")
-                    artist = song.get("artist", "Desconhecido")
-                    title_song = song.get("title", "Sem Título")
-                    self.textbox.insert("end", f"{i:03d} | {artist} - {title_song}\n      path=\"{path}\"\n\n")
         except Exception as e: # type: ignore
             self.textbox.insert("end", self.txt.get("error_reading_xml", "Erro ao ler XML:").format(error=e)) # type: ignore
 
@@ -162,23 +168,27 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         self.btn_run.pack(pady=20)
 
     def scan_vdj_playlists(self):
-        """Varre as pastas MyLists em todos os discos e retorna a lista de arquivos .vdjfolder."""
-        self.playlist_map = {}
-        options = []
+        """Varre as pastas MyLists em todos os discos e retorna a lista de arquivos .vdjfolder agrupados por nome."""
+        temp_map = defaultdict(list)
         directories = self.vdj_manager.localizar_diretorios_folders()
         
         for folder in directories:
             if os.path.exists(folder):
-                drive = os.path.splitdrive(folder)[0] or "PC"
-                
                 for file in os.listdir(folder):
                     if file.lower().endswith('.vdjfolder'):
                         name = os.path.splitext(file)[0]
-                        # Formato: [C:] Nome da Playlist
-                        display_name = f"[{drive.upper()}] {name}"
                         full_path = os.path.join(folder, file)
-                        self.playlist_map[display_name] = full_path
-                        options.append(display_name)
+                        temp_map[name].append(full_path)
+        
+        self.playlist_map = {}
+        options = []
+        for name, paths in temp_map.items():
+            display_name = name
+            if len(paths) > 1:
+                display_name += " (Híbrida)"
+            
+            self.playlist_map[display_name] = paths
+            options.append(display_name)
         
         return sorted(options)
 
@@ -188,44 +198,45 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
     def show_playlist_contents(self):
         display_name = self.selected_vdj_playlist.get()
-        xml_path = self.playlist_map.get(display_name)
+        xml_paths = self.playlist_map.get(display_name)
         
-        if not xml_path or not os.path.exists(xml_path):
+        if not xml_paths:
             messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("error_select_valid_playlist_to_view", "Selecione uma playlist válida para visualizar seu conteúdo."))
             return
 
-        PlaylistContentWindow(self, display_name, xml_path) # type: ignore
+        PlaylistContentWindow(self, display_name, xml_paths) # type: ignore
 
     def run_import(self):
         display_name = self.selected_vdj_playlist.get()
-        xml_path = self.playlist_map.get(display_name)
+        xml_paths = self.playlist_map.get(display_name)
         
-        if not xml_path or not os.path.exists(xml_path):
+        if not xml_paths:
             messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("error_select_valid_vdj_xml", "Selecione um arquivo XML do VirtualDJ válido."))
             return
 
         # Mapeia discos para seus respectivos bancos de dados
         dbs_by_drive = {os.path.splitdrive(db)[0].upper(): db for db in self.found_databases}
-        playlist_name = os.path.splitext(os.path.basename(xml_path))[0]
+        playlist_name = display_name.split(" (")[0]
 
         try: # type: ignore
             self.update_status(self.txt.get("status_reading_vdj_playlist", "Lendo playlist VDJ..."), "#00E5A3")
-            tree = ET.parse(xml_path) # type: ignore
-            root = tree.getroot()
             
             # Agrupa músicas pelo disco de origem
             tracks_by_drive = defaultdict(list)
-            for song in root.findall("song"):
-                path_abs = str(song.get("path") or "")
-                if not path_abs: continue
-                
-                drive = os.path.splitdrive(path_abs)[0].upper()
-                if drive in dbs_by_drive:
-                    tracks_by_drive[drive].append({
-                        "path": path_abs,
-                        "artist": str(song.get("artist") or ""),
-                        "title": str(song.get("title") or "")
-                    })
+            for xml_path in xml_paths:
+                tree = ET.parse(xml_path)
+                root = tree.getroot()
+                for song in root.findall("song"):
+                    path_abs = str(song.get("path") or "")
+                    if not path_abs: continue
+                    
+                    drive = os.path.splitdrive(path_abs)[0].upper()
+                    if drive in dbs_by_drive:
+                        tracks_by_drive[drive].append({
+                            "path": path_abs,
+                            "artist": str(song.get("artist") or ""),
+                            "title": str(song.get("title") or "")
+                        })
 
             total_tracks = sum(len(t) for t in tracks_by_drive.values())
             if total_tracks == 0: # type: ignore

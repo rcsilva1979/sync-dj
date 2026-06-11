@@ -158,11 +158,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             
         lbl_titulo.pack(pady=(25, 5))
 
-        # Informativo de bancos localizados (Geral)
-        dbs_info = " | ".join([os.path.splitdrive(d)[0] for d in self.found_databases])
-        lbl_dbs = ctk.CTkLabel(self, text=self.txt.get("dbs_found_label", "Bancos de Dados Engine DJ Localizados:").format(dbs_info=dbs_info), font=ctk.CTkFont(size=11), text_color="#00E5A3")
-        lbl_dbs.pack(pady=(0, 5))
-
         frame_config = ctk.CTkFrame(self)
         frame_config.pack(padx=30, pady=(10, 8), fill="x")
 
@@ -176,8 +171,8 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         btn_pasta.grid(row=1, column=1, padx=(0, 20), pady=(0, 8), sticky="w")
 
         # Label Informativo de Banco de Dados Detectado (Substitui a seleção manual)
-        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(size=12, slant="italic"), text_color="#AAAAAA")
-        self.lbl_db_auto.grid(row=2, column=0, columnspan=2, padx=(25, 15), pady=(0, 8), sticky="w")
+        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#AAAAAA")
+        self.lbl_db_auto.grid(row=2, column=0, columnspan=2, padx=(25, 15), pady=(2, 10), sticky="w")
 
         lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(weight="bold"))
         lbl_playlist.grid(row=3, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
@@ -298,26 +293,25 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.path_db.set(banco_alvo) # Define o caminho do banco
             self.salvar_config_ui() # Salva a configuração para persistir o banco encontrado
             
-            # Atualiza a exibição do label com UUID
-            uuid = get_database_uuid(banco_alvo)
-            if uuid:
-                self.lbl_db_auto.configure(text=f"✔ Banco de dados Engine DJ: {os.path.basename(banco_alvo)} [{uuid}]", text_color="#00E5A3")
-            else:
-                self.lbl_db_auto.configure(text=f"✔ Banco de dados Engine DJ: {os.path.basename(banco_alvo)}", text_color="#00E5A3")
+            # Ponto 6: Informar os locais (discos) localizados destacando o alvo
+            drives_encontrados = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+            drive_alvo = os.path.splitdrive(banco_alvo)[0].upper()
+            
+            texto_drives = " | ".join([f"[{d}]" if d == drive_alvo else d for d in drives_encontrados])
+            self.lbl_db_auto.configure(text=f"✔ {self.txt.get('engine_dbs_detected', 'Bancos detectados').format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
         else: # Nenhum banco válido encontrado
             self.path_db.set("") # Limpa o caminho do banco
             self.salvar_config_ui() # Salva a configuração (com path_db vazio)
 
+            drives_encontrados = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
             if drive_musica:
                 self.lbl_db_auto.configure(
                     text=self.txt.get("error_no_db_on_drive", "Erro: Banco de Dados não encontrado no disco {drive}").format(drive=drive_musica),
                     text_color="#FF5555"
                 )
             else:
-                self.lbl_db_auto.configure(
-                    text=self.txt.get("db_file", "Banco de Dados (m.db):") + " " + self.txt.get("not_found", "Não localizada"),
-                    text_color="#FF5555"
-                )
+                texto_drives = " | ".join(drives_encontrados) if drives_encontrados else self.txt.get("not_found", "Não localizada")
+                self.lbl_db_auto.configure(text=f"✖ {self.txt.get('db_file', 'Banco de Dados (m.db):')} {texto_drives}", text_color="#FF5555")
         
         self.carregar_playlists() # Always call carregar_playlists after attempting to set db_path
 
@@ -389,39 +383,48 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         if pasta_atual and os.path.exists(pasta_atual):
             folder_name_from_path = os.path.basename(os.path.normpath(pasta_atual))
 
-        raw_existing_playlists = get_playlists_from_db(db_path)
+        # 1, 2 e 3: Localiza todos os bancos, abre e lista todas as playlists
+        todas_playlists_nomes = set()
+        for db in self.found_databases:
+            if os.path.exists(db):
+                todas_playlists_nomes.update(get_playlists_from_db(db))
+
+        # 4: Suffix (Nova...) só aparece se não houver em NENHUM banco de dados detectado
+        global_existing_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in todas_playlists_nomes}
         
-        # Mapeia o nome "limpo" para o nome real do banco para facilitar a busca
-        existing_playlists_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in raw_existing_playlists}
+        # Para manter o casing do banco ALVO se a playlist já existir nele
+        playlists_alvo = get_playlists_from_db(db_path) if db_path else []
+        target_existing_map = {self._limpar_nome_playlist(pl).lower(): pl for pl in playlists_alvo}
         
         display_options = []
         will_be_created_suffix = self.txt["will_be_created_suffix"]
         my_collection_actual_name = self.txt["collection_name"] # "MY COLLECTION"
         my_collection_display_name = self.txt["collection_name_display"] # "- MY COLLECTION"
 
-        # 1. Adiciona a opção "MY COLLECTION" (limpa se existir no banco, com sufixo se não)
+        # 1. Adiciona a opção "MY COLLECTION"
         base_mc_lower = self._limpar_nome_playlist(my_collection_actual_name).lower()
-        if base_mc_lower not in existing_playlists_map:
-            display_options.append(my_collection_display_name + will_be_created_suffix)
+        if base_mc_lower in global_existing_map:
+            # Se existe em algum disco, usa o nome limpo (do alvo se possível, para manter o casing)
+            display_options.append(target_existing_map.get(base_mc_lower, global_existing_map[base_mc_lower]))
         else:
-            # Usa o nome exatamente como está no banco (preserva casing e decorações originais)
-            display_options.append(existing_playlists_map[base_mc_lower])
+            display_options.append(my_collection_display_name + will_be_created_suffix)
 
         # 2. Adiciona o nome da pasta de músicas se não for a coleção
         if folder_name_from_path:
             clean_folder_lower = self._limpar_nome_playlist(folder_name_from_path).lower()
             if clean_folder_lower != base_mc_lower:
-                if clean_folder_lower not in existing_playlists_map:
-                    display_options.append(folder_name_from_path + will_be_created_suffix)
+                if clean_folder_lower in global_existing_map:
+                    display_options.append(target_existing_map.get(clean_folder_lower, global_existing_map[clean_folder_lower]))
                 else:
-                    display_options.append(existing_playlists_map[clean_folder_lower])
+                    display_options.append(folder_name_from_path + will_be_created_suffix)
 
         # 3. Adiciona todas as outras playlists existentes sem duplicatas
         added_bases_lower = {self._limpar_nome_playlist(opt).lower() for opt in display_options}
-        for pl in raw_existing_playlists:
+        for pl in sorted(list(todas_playlists_nomes)):
             base_pl_lower = self._limpar_nome_playlist(pl).lower()
             if base_pl_lower not in added_bases_lower:
-                display_options.append(pl)
+                # Nunca terá sufixo aqui porque veio de 'todas_playlists_nomes'
+                display_options.append(target_existing_map.get(base_pl_lower, pl))
                 added_bases_lower.add(base_pl_lower)
 
         # Ordena alfabeticamente, mantendo "MY COLLECTION" no topo
