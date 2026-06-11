@@ -148,10 +148,12 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         if self.vdj_options:
             self.selected_vdj_playlist.set(self.vdj_options[0]) # type: ignore
 
-        # Info sobre bancos detectados
-        dbs_info = " | ".join([os.path.splitdrive(d)[0] for d in self.found_databases])
-        lbl_dbs = ctk.CTkLabel(self, text=self.txt.get("dbs_found_label", "Bancos de Dados Engine DJ Localizados:").format(dbs_info=dbs_info), font=ctk.CTkFont(size=11), text_color="#00E5A3")
-        lbl_dbs.pack(pady=(5, 0))
+        # Label Informativo unificado (Padrão Mirror Sync)
+        drives_totais = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+        texto_drives = " | ".join(drives_totais)
+        self.lbl_db_auto = ctk.CTkLabel(self, font=ctk.CTkFont(size=12, weight="bold"))
+        self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
+        self.lbl_db_auto.pack(pady=(5, 0))
 
         # Status e Progresso
         self.lbl_status = ctk.CTkLabel(self, text=self.txt.get("select_playlist_to_start", "Selecione a playlist para começar"), font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)

@@ -78,10 +78,12 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(5, 10))
 
-        # Informativo de bancos localizados
-        dbs_info = " | ".join([os.path.splitdrive(d)[0] for d in self.found_databases])
-        self.lbl_db_info = ctk.CTkLabel(self, text=self.txt.get("dbs_found_label", "Bancos de Dados Engine DJ Localizados:").format(dbs_info=dbs_info), font=ctk.CTkFont(size=11), text_color="#00E5A3")
-        self.lbl_db_info.pack(pady=(5, 5))
+        # Label Informativo unificado (Padrão Mirror Sync)
+        drives_totais = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+        texto_drives = " | ".join(drives_totais)
+        self.lbl_db_auto = ctk.CTkLabel(self, font=ctk.CTkFont(size=12, weight="bold"))
+        self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
+        self.lbl_db_auto.pack(pady=(5, 5))
 
         # Frame para seleção da playlist
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")

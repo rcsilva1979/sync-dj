@@ -43,6 +43,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.playlist_db_map = defaultdict(list)
 
         self.construir_ui()
+        self.selected_playlist.trace_add("write", lambda *args: self.atualizar_label_drives())
         self.carregar_playlists()
 
     def construir_ui(self):
@@ -64,27 +65,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             lbl_title = ctk.CTkLabel(self, text="MIXED IN KEY HOTCUE SYNC", font=ctk.CTkFont(size=22, weight="bold"), text_color="#3498DB")
             lbl_title.pack(pady=(30, 15))
 
-        # Frame de Bancos Localizados
-        db_frame = ctk.CTkFrame(self, fg_color="#252525", corner_radius=10, border_color="#3498DB", border_width=1)
-        db_frame.pack(padx=40, pady=10, fill="x")
-
-        # Usar a string "dbs_found" que espera {count}
-        lbl_db_header = ctk.CTkLabel(
-            db_frame,
-            text=self.txt.get("dbs_found", "Engine Databases found: {count}").format(count=len(self.found_databases)),
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color="#3498DB"
-        )
-        lbl_db_header.pack(pady=(10, 5))
-
-        dbs_info_text = ""
-        if self.found_databases:
-            drives = sorted(list(set([os.path.splitdrive(path)[0].upper() for path in self.found_databases])))
-            dbs_info_text = " | ".join(drives)
-        else:
-            dbs_info_text = self.txt.get("not_found", "Não localizada")
-        lbl_dbs = ctk.CTkLabel(db_frame, text=dbs_info_text, font=ctk.CTkFont(size=11), text_color="#AAAAAA", justify="center")
-        lbl_dbs.pack(pady=(0, 15), padx=20)
+        # Label Informativo unificado seguindo o padrão do Mirror Sync
+        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#AAAAAA")
+        self.lbl_db_auto.pack(pady=(5, 10), padx=40)
 
         # Seleção de Playlist
         lbl_playlist = ctk.CTkLabel(self, text=self.txt.get("select_playlist_full_path", "Select Playlist:"), font=ctk.CTkFont(weight="bold"))
@@ -161,10 +144,31 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             self.combo_playlist.configure(values=all_playlists, state="normal")
             self.selected_playlist.set(all_playlists[0])
             self.combo_playlist.set(all_playlists[0]) # Define o valor inicial do combobox
-            self.lbl_status.configure(text=self.txt.get("playlists_loaded_count", "{count} playlists loaded").format(count=len(all_playlists)))
+            self.atualizar_label_drives()
         else:
             self.combo_playlist.configure(values=[], state="disabled")
-            self.lbl_status.configure(text=self.txt.get("no_playlists_found_generic", "No playlists found"), text_color="#FF5555")
+            self.lbl_db_auto.configure(text=f"✖ {self.txt.get('not_found', 'Não localizada')}", text_color="#FF5555")
+
+    def atualizar_label_drives(self):
+        """Atualiza a visualização dos drives destacando onde a playlist selecionada está presente."""
+        if not self.found_databases:
+            self.lbl_db_auto.configure(text=f"✖ {self.txt.get('not_found', 'Não localizada')}", text_color="#FF5555")
+            return
+
+        playlist_atual = self.selected_playlist.get()
+        dbs_com_playlist = [pair[0] for pair in self.playlist_db_map.get(playlist_atual, [])]
+        drives_com_playlist = {os.path.splitdrive(db)[0].upper() for db in dbs_com_playlist}
+
+        drives_totais = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+        
+        # Monta a string de drives destacando os que contêm a playlist (ex: [C:] | D:)
+        texto_drives = " | ".join([
+            f"[{d}]" if d in drives_com_playlist else d 
+            for d in drives_totais
+        ])
+
+        status_text = f"✔ {self.txt.get('engine_dbs_detected', 'Bancos detectados').format(count=len(self.found_databases))}: {texto_drives}"
+        self.lbl_db_auto.configure(text=status_text, text_color="#00E5A3")
 
     def listar_musicas_hotcues(self):
         playlist_name = self.selected_playlist.get()
