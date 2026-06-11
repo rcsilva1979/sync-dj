@@ -14,7 +14,7 @@ class LauncherHub(ctk.CTk):
         self.txt = STRINGS[self.lang]
 
         self.title("Engine DJ Tools Hub")
-        self.geometry("600x450")
+        self.geometry("600x600")
         self.resizable(False, False)
         self.configure(fg_color="#1a1a1a")
 
@@ -63,11 +63,26 @@ class LauncherHub(ctk.CTk):
         )
         self.btn_vdj.pack(pady=10)
 
+        # Botão 3: Importar Hotcues (Mixed In Key / Serato)
+        self.btn_hotcue = ctk.CTkButton(
+            self,
+            text=self.txt["hotcue_import_btn"],
+            font=ctk.CTkFont(size=15, weight="bold"),
+            height=60, width=400,
+            fg_color="#3498DB", text_color="#FFFFFF", hover_color="#2980B9",
+            command=self.abrir_import_hotcue
+        )
+        self.btn_hotcue.pack(pady=10)
+
         lbl_footer = ctk.CTkLabel(self, text="Engine DJ Tools Suite", font=ctk.CTkFont(size=10), text_color="#555555")
         lbl_footer.pack(side="bottom", pady=10)
 
     def abrir_mirror_sync(self):
         EngineSyncApp(self, self.txt) # Passa a instância do LauncherHub e as strings de texto
+
+    def abrir_import_hotcue(self):
+        from mik_gui import MixedInKeyWindow
+        MixedInKeyWindow(self, self.txt)
 
     def abrir_sync_vdj(self):
         VirtualDJWindow(self, self.txt)

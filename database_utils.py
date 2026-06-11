@@ -60,6 +60,43 @@ def get_tracks_from_playlist(db_path, playlist_name):
         print(f"Erro ao obter faixas da playlist '{playlist_name}': {e}")
     return tracks_info
 
+def get_tracks_by_playlist_id(db_path, playlist_id):
+    """
+    Retorna uma lista de dicionários com os detalhes das faixas de uma playlist específica por ID.
+    """
+    if not db_path or not os.path.exists(db_path) or playlist_id is None:
+        return []
+    
+    tracks_info = []
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        
+        # O Engine DJ armazena caminhos relativos à pasta "Engine Library"
+        # O banco m.db fica em: .../Engine Library/Database2/m.db
+        engine_library_dir = os.path.dirname(os.path.dirname(os.path.abspath(db_path)))
+
+        # Busca faixas associadas
+        cursor = conn.execute("""
+            SELECT T.id, T.title, T.artist, T.album, T.path, T.filename, T.length, T.bpm, T.year, T.fileType
+            FROM PlaylistEntity PE
+            JOIN Track T ON PE.trackId = T.id
+            WHERE PE.listId = ?
+            ORDER BY PE.id ASC
+        """, (playlist_id,))
+
+        for row in cursor.fetchall():
+            track_data = dict(row)
+            rel_path = track_data.get("path")
+            if rel_path:
+                # Resolve o caminho absoluto e normaliza as barras para o formato do Windows (\)
+                track_data["caminho_absoluto"] = os.path.normpath(os.path.join(engine_library_dir, rel_path))
+            tracks_info.append(track_data)
+        conn.close()
+    except Exception as e:
+        print(f"Erro ao obter faixas da playlist ID '{playlist_id}': {e}")
+    return tracks_info
+
 def get_database_uuid(db_path):
     """Retorna o UUID do banco de dados Engine DJ a partir da tabela Information."""
     if not db_path or not os.path.exists(db_path):
