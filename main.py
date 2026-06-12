@@ -75,6 +75,17 @@ class LauncherHub(ctk.CTk):
         )
         self.btn_hotcue.pack(pady=10)
 
+        # Botão 4: Reencontrar Músicas Perdidas
+        self.btn_relocate = ctk.CTkButton(
+            self,
+            text=self.txt["relocate_lost_tracks_btn"],
+            font=ctk.CTkFont(size=15, weight="bold"),
+            height=60, width=400,
+            fg_color="#F39C12", text_color="#000000", hover_color="#D68910",
+            command=self.abrir_relocate
+        )
+        self.btn_relocate.pack(pady=10)
+
         lbl_footer = ctk.CTkLabel(self, text="Engine DJ Tools Suite", font=ctk.CTkFont(size=10), text_color="#555555")
         lbl_footer.pack(side="bottom", pady=10)
 
@@ -87,6 +98,10 @@ class LauncherHub(ctk.CTk):
 
     def abrir_sync_vdj(self):
         VirtualDJWindow(self, self.txt)
+
+    def abrir_relocate(self):
+        from relocate_gui import RelocateLostTracksWindow
+        RelocateLostTracksWindow(self, self.txt)
 
 def main():
     """Inicia o Launcher Hub."""

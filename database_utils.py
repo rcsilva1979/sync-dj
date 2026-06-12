@@ -79,7 +79,7 @@ def get_tracks_by_playlist_id(db_path, playlist_id):
 
         # Busca faixas associadas
         cursor = conn.execute("""
-            SELECT T.id, T.title, T.artist, T.album, T.path, T.filename, T.length, T.bpm, T.year, T.fileType
+            SELECT PE.id AS entry_id, T.id, T.title, T.artist, T.album, T.path, T.filename, T.length, T.bpm, T.year, T.fileType
             FROM PlaylistEntity PE
             JOIN Track T ON PE.trackId = T.id
             WHERE PE.listId = ?
@@ -163,23 +163,78 @@ def localizar_bancos_dados_engine():
     if os.path.exists(path_music):
         encontrados.append(os.path.normpath(path_music))
         
-    # 2. Varre a raiz de volumes do sistema
-    for letra in string.ascii_uppercase:
-        raiz = f"{letra}:\\"
-        if os.path.exists(raiz):
-            # No Windows, verifica se é um disco fixo (DRIVE_FIXED = 3)
-            if os.name == 'nt':
+    # 2. Varre volumes externos/secundários (Windows e Mac)
+    if IS_WIN:
+        for letra in string.ascii_uppercase:
+            raiz = f"{letra}:\\"
+            if os.path.exists(raiz):
                 try:
                     import ctypes
-                    if ctypes.windll.kernel32.GetDriveTypeW(raiz) == 3:
+                    # DRIVE_FIXED = 3, DRIVE_REMOVABLE = 2
+                    if ctypes.windll.kernel32.GetDriveTypeW(raiz) in (2, 3):
                         path_disco = os.path.join(raiz, "Engine Library", "Database2", "m.db")
                         if os.path.exists(path_disco):
                             norm = os.path.normpath(path_disco)
                             if norm not in encontrados:
                                 encontrados.append(norm)
-                except Exception:
-                    pass
-            else:
-                # Lógica simplificada para outros sistemas (se houver ponto de montagem fixo)
-                pass
+                except Exception: pass
+    elif IS_MAC:
+        volumes_path = "/Volumes"
+        if os.path.exists(volumes_path):
+            for volume in os.listdir(volumes_path):
+                raiz = os.path.join(volumes_path, volume)
+                path_disco = os.path.join(raiz, "Engine Library", "Database2", "m.db")
+                if os.path.exists(path_disco):
+                    norm = os.path.normpath(path_disco)
+                    if norm not in encontrados:
+                        encontrados.append(norm)
+
     return encontrados
+
+def get_track_id_by_path(db_path, rel_path):
+    """Retorna o ID da track se o caminho relativo já existir no banco (normalizando slashes)."""
+    if not db_path or not os.path.exists(db_path):
+        return None
+    try:
+        conn = sqlite3.connect(db_path)
+        normalized_path = rel_path.replace('\\', '/')
+        row = conn.execute("SELECT id FROM Track WHERE REPLACE(path, '\\', '/') = ?", (normalized_path,)).fetchone()
+        conn.close()
+        return row[0] if row else None
+    except Exception:
+        return None
+
+def update_playlist_entry_track(db_path, entry_id, new_track_id):
+    """Atualiza o trackId de uma entrada específica na PlaylistEntity (Swapping)."""
+    if not db_path or not os.path.exists(db_path):
+        return False
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE PlaylistEntity SET trackId = ? WHERE id = ?", (new_track_id, entry_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar entrada {entry_id} da playlist: {e}")
+        return False
+
+def update_track_path(db_path, track_id, new_rel_path):
+    """Atualiza o caminho relativo de uma música no banco de dados Engine DJ."""
+    if not db_path or not os.path.exists(db_path):
+        return False
+    try:
+        conn = sqlite3.connect(db_path)
+        # Verifica se o caminho já existe em outra track para evitar erro de UNIQUE constraint
+        # Se o Engine DJ já conhece o arquivo em outro registro, não podemos duplicar o path
+        check = conn.execute("SELECT id FROM Track WHERE path = ? AND id != ?", (new_rel_path, track_id)).fetchone()
+        if check:
+            conn.close()
+            return False
+            
+        conn.execute("UPDATE Track SET path = ? WHERE id = ?", (new_rel_path, track_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar caminho da música {track_id}: {e}")
+        return False

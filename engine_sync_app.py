@@ -628,7 +628,9 @@ class SyncManager:
 
                 # Monta conjunto dos filenames presentes no disco agora
                 arquivos_no_disco = set()
-                for raiz_walk, _, arqs_walk in os.walk(pasta):
+                for raiz_walk, dirs_walk, arqs_walk in os.walk(pasta):
+                    # Filtro recursivo otimizado
+                    dirs_walk[:] = [d for d in dirs_walk if not d.startswith('.') and not d.startswith('$')]
                     for f in arqs_walk:
                         if f.lower().endswith(('.mp3', '.flac', '.wav', '.aiff', '.m4a')):
                             arquivos_no_disco.add(f.lower())
@@ -662,6 +664,9 @@ class SyncManager:
 
             for raiz, diretorios, arquivos in os.walk(pasta):
                 if self.cancel_requested: return None, None
+
+                # Filtro recursivo otimizado para a árvore de playlists
+                diretorios[:] = [d for d in diretorios if not d.startswith('.') and not d.startswith('$')]
 
                 parent_id = mapa_playlists.get(raiz.lower(), my_collection_id)
                 diretorios.sort(reverse=True) 
