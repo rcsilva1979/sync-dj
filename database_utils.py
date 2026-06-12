@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import string
+from constants import IS_WIN, IS_MAC
  
 def get_playlists_from_db(db_path):
     """Retorna lista de títulos de playlists do banco de dados Engine DJ."""

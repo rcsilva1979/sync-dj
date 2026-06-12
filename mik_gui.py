@@ -12,6 +12,7 @@ import threading
 from database_utils import localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id
 from engine_sync_app import get_resource_path
 from le_json import read_mp3
+from constants import IS_WIN, IS_MAC
 from hotcue_normalizer import normalize_hotcues
 from engine_hotcues import format_time, parse_quick_cues, CueWrite, encode_quick_cues
 

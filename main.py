@@ -5,6 +5,7 @@ from PIL import Image
 from engine_gui import EngineSyncApp, get_resource_path
 from Sync_VDJ.vdj_gui import VirtualDJWindow
 from engine_sync_app import get_system_lang, STRINGS
+from constants import IS_WIN, IS_MAC
 
 class LauncherHub(ctk.CTk):
     def __init__(self):

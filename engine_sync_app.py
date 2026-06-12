@@ -14,7 +14,13 @@ import shutil
 import subprocess
 from pathlib import Path as _Path
 from tinytag import TinyTag
-from constants import VERSAO_ATUAL, STRINGS, GITHUB_API_URL
+from constants import (
+    VERSAO_ATUAL, 
+    STRINGS, 
+    GITHUB_API_URL, 
+    IS_WIN, 
+    IS_MAC
+)
 from database_utils import (
     get_playlists_from_db as _get_playlists,
     get_tracks_from_playlist as _get_tracks,

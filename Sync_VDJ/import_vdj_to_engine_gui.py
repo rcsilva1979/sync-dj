@@ -12,6 +12,7 @@ from collections import defaultdict
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from database_utils import localizar_bancos_dados_engine, get_database_uuid
 from engine_sync_app import SyncManager, get_resource_path
+from constants import IS_WIN, IS_MAC
 
 try:
     # Tenta importar o VDJManager para localizar as pastas MyLists
@@ -90,7 +91,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win'):
+        if IS_WIN:
             if os.path.exists(self.caminho_icone):
                 def aplicar_icone():
                     try:
@@ -216,8 +217,20 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
             messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("error_select_valid_vdj_xml", "Selecione um arquivo XML do VirtualDJ válido."))
             return
 
+        def get_disk_id(path):
+            """Retorna um identificador único de disco (Letra no Win, /Volumes/Nome no Mac)."""
+            if IS_WIN:
+                return os.path.splitdrive(os.path.abspath(path))[0].upper()
+            elif IS_MAC:
+                abs_path = os.path.normpath(os.path.abspath(path))
+                if abs_path.startswith("/Volumes/"):
+                    parts = abs_path.split(os.sep)
+                    return f"{os.sep}{parts[1]}{os.sep}{parts[2]}" # Ex: /Volumes/MEUHD
+                return "INTERNAL"
+            return ""
+
         # Mapeia discos para seus respectivos bancos de dados
-        dbs_by_drive = {os.path.splitdrive(db)[0].upper(): db for db in self.found_databases}
+        dbs_by_drive = {get_disk_id(db): db for db in self.found_databases}
         playlist_name = display_name.split(" (")[0]
 
         try: # type: ignore
@@ -232,7 +245,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                     path_abs = str(song.get("path") or "")
                     if not path_abs: continue
                     
-                    drive = os.path.splitdrive(path_abs)[0].upper()
+                    drive = get_disk_id(path_abs)
                     if drive in dbs_by_drive:
                         tracks_by_drive[drive].append({
                             "path": path_abs,

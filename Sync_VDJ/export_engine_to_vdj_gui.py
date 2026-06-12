@@ -12,7 +12,7 @@ import xml.dom.minidom as minidom
 # Adiciona o diretório pai (Engine-Sync) ao sys.path para importar engine_sync_app
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) #
 from database_utils import get_tracks_from_playlist, localizar_bancos_dados_engine, get_database_uuid, get_all_playlists_hierarchical #
-from engine_sync_app import get_resource_path
+from engine_sync_app import SyncManager, get_resource_path, IS_WIN, IS_MAC
 from Sync_VDJ.vdj_logic import VDJManager
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
@@ -26,6 +26,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.resizable(False, False)
         self.configure(fg_color="#242424")
 
+        self.manager = SyncManager()
         self.vdj_manager = VDJManager()
         self.transient(master)   # Vincula esta janela à janela pai (Sync VDJ)
         self.grab_set()          # Restaura o modo modal para a janela ficar sempre no topo e focar
@@ -297,7 +298,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
 
         try:
             # Obter o diretório base da aplicação (do SyncManager na janela principal, que é o master do master)
-            base_dir = self.master.master.manager.base_dir
+            base_dir = self.manager.base_dir
             reports_dir = os.path.join(base_dir, "Reports")
 
             # Criar a pasta Reports se não existir

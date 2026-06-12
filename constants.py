@@ -1,3 +1,8 @@
+import sys
+
+IS_WIN = sys.platform.startswith('win')
+IS_MAC = sys.platform == 'darwin'
+
 VERSAO_ATUAL = "v2.0.9"
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
 GITHUB_API_URL = "https://api.github.com/repos/lehdeejay82/Engine-Sync/releases/latest"

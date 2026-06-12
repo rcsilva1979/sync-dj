@@ -9,7 +9,14 @@ from PIL import Image
 import customtkinter as ctk
 
 # Importações do nosso backend e constantes
-from constants import VERSAO_ATUAL, URL_DOACAO, GITHUB_RELEASE_URL, STRINGS
+from constants import (
+    VERSAO_ATUAL, 
+    URL_DOACAO, 
+    GITHUB_RELEASE_URL, 
+    STRINGS,
+    IS_WIN,
+    IS_MAC
+)
 from database_utils import get_playlists_from_db, get_database_uuid
 from engine_sync_app import (
     SyncManager, get_system_lang, get_resource_path, 
