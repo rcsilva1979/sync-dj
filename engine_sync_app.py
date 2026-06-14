@@ -454,7 +454,8 @@ class SyncManager:
 
         # log_paths agora é uma tupla (log_path, debug_path)
         arquivos_totais = []
-        
+        report_lines = []
+
         if self.config.get("fazer_backup"):
             progress_callback(ui_strings["status_backup"], 0)
             try:
@@ -496,6 +497,11 @@ class SyncManager:
             lastEditTime_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # para lastEditTime (string ISO)
 
             self.log(log_paths, f"[DB] Conectado ao banco: {db_path}")
+            report_lines.append(f"INÍCIO DA SINCRONIZAÇÃO: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+            report_lines.append(f"Banco de Dados : {db_path}")
+            report_lines.append(f"Pasta de Músicas: {pasta}")
+            report_lines.append(f"Playlist Alvo  : {nome_colecao}\n" + "="*60)
+            
             self.log(log_paths, f"[DB] UUID do banco: {db_uuid}")
             self.log(log_paths, "")
             self.log(log_paths, "--- FASE 1: Importacao de Faixas ---")
@@ -504,7 +510,7 @@ class SyncManager:
             for idx, caminho_completo in enumerate(arquivos_totais):
                 if self.cancel_requested:
                     self.log(log_paths, "[CANCEL] Interrompido pelo usuário.")
-                    return None, None
+                    return None, None, ""
 
                 if idx % 20 == 0 or idx == total_arquivos - 1:
                     progresso = (idx + 1) / total_arquivos * 0.5 
@@ -540,6 +546,7 @@ class SyncManager:
                             log_paths=log_paths, 
                             modo_sobrescrever=self.config.get("sobrescrever_hotcue", False),
                             progress_callback=progress_callback) # type: ignore
+                        report_lines.append(f"[HOTCUE] Atualizado: {os.path.basename(caminho_completo)}")
 
                     continue
 
@@ -568,6 +575,7 @@ class SyncManager:
                     track_id_novo = cursor.lastrowid
                     novas_musicas += 1
                     self.log(log_paths, f"  [TRACK +] id={track_id_novo} | {artista} - {titulo} | {os.path.basename(caminho_completo)}")
+                    report_lines.append(f"[TRACK +] {artista} - {titulo} ({os.path.basename(caminho_completo)})")
 
                     # Importa hotcues do MP3 se o checkbox estiver ativado
                     # Track nova: sempre importa (não há nada para sobrescrever)
@@ -615,6 +623,7 @@ class SyncManager:
                 if last_root:
                     cursor.execute("UPDATE Playlist SET nextListId = ? WHERE id = ?", (my_collection_id, last_root[0])) # type: ignore
                 self.log(log_paths, f"  [PLAYLIST +] Criada raiz: '{nome_colecao}' (id={my_collection_id})")
+                report_lines.append(f"[PLAYLIST] Raiz processada: {nome_colecao}")
             else:
                 my_collection_id = row[0] # type: ignore
                 self.log(log_paths, f"  [PLAYLIST] Usando playlist existente: '{nome_colecao}' (id={my_collection_id})")
@@ -681,7 +690,7 @@ class SyncManager:
             tracks_por_playlist = defaultdict(dict)
 
             for raiz, diretorios, arquivos in os.walk(pasta):
-                if self.cancel_requested: return None, None
+                if self.cancel_requested: return None, None, ""
 
                 # Filtro recursivo otimizado para a árvore de playlists
                 diretorios[:] = [d for d in diretorios if not d.startswith('.') and not d.startswith('$')]
@@ -703,6 +712,7 @@ class SyncManager:
                     id_proxima_pasta = novo_id 
                     mapa_playlists[caminho_subpasta.lower()] = novo_id
                     mapa_hierarquia[novo_id] = parent_id
+                    report_lines.append(f"[SUB-PLAYLIST +] {d}")
                     self.log(log_paths, f"  [PLAYLIST +] Sub-playlist: '{d}' (id={novo_id}, pai={parent_id})")
 
                 if tem_sub and tem_arquivos:
@@ -738,7 +748,7 @@ class SyncManager:
                     tracks_por_playlist[my_collection_id][tid] = tpath or tfname or str(tid)
                 self.log(log_paths, f"  [ORFA] {len(tracks_orfas)} track(s) sem arquivo no disco preservada(s) na playlist raiz")
 
-            if self.cancel_requested: return None, None
+            if self.cancel_requested: return None, None, ""
 
             progress_callback(ui_strings["status_saving"], 0.85)
             self.log(log_paths, "")
@@ -746,7 +756,7 @@ class SyncManager:
             
             total_entidades = 0
             for list_id, dict_tracks in tracks_por_playlist.items():
-                if self.cancel_requested: return None, None
+                if self.cancel_requested: return None, None, ""
 
                 for track_id, caminho in sorted(dict_tracks.items(), key=lambda item: item[1]):
                     # Busca o tail atual: a entidade que ninguém aponta (nextEntityId=0)
@@ -787,6 +797,16 @@ class SyncManager:
                 self.log(log_paths, f"  Arquivo de debug       : {_dp}")
             self.log(log_paths, "=" * 60)
             
-            return novas_musicas, apagadas_musicas
+            resumo_final = [
+                "\n" + "="*60,
+                "RESUMO DA OPERAÇÃO",
+                f"Músicas Novas Injetadas : {novas_musicas}",
+                f"Músicas Órfãs Removidas : {apagadas_musicas}",
+                f"Playlists na Árvore     : {len(tracks_por_playlist)}",
+                f"Total de Referências    : {total_entidades}",
+                "="*60
+            ]
+            
+            return novas_musicas, apagadas_musicas, "\n".join(report_lines + resumo_final)
         finally:
             conn.close()

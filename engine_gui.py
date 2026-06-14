@@ -537,12 +537,12 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.after(0, lambda: [self.status_var.set(msg), self.progress_bar.set(progresso) if progresso is not None else None])
 
         def thread_sync():
-            novas, apagadas = self.manager.motor_sincronizacao(self.txt, callback_progresso)
-            self.after(0, lambda: self.finalizar_sync(novas, apagadas))
+            novas, apagadas, relatorio = self.manager.motor_sincronizacao(self.txt, callback_progresso)
+            self.after(0, lambda: self.finalizar_sync(novas, apagadas, relatorio))
 
         threading.Thread(target=thread_sync, daemon=True).start()
 
-    def finalizar_sync(self, novas_musicas, apagadas_musicas):
+    def finalizar_sync(self, novas_musicas, apagadas_musicas, relatorio):
         self.btn_sync.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
 
@@ -557,6 +557,33 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.status_var.set(self.txt["status_done"])
         self.progress_bar.set(1.0)
         
-        # Puxa o título diretamente do dicionário de idiomas
-        titulo_msg = self.txt.get("success_title", "Success")
-        messagebox.showinfo(title=titulo_msg, message=self.txt["success_msg"].format(novas=novas_musicas, apagadas=apagadas_musicas))
+        # Abre o relatório detalhado em uma nova janela
+        self._abrir_janela_relatorio(self.combo_playlist.get(), relatorio)
+
+    def _abrir_janela_relatorio(self, playlist_name, content):
+        """Abre a janela de visualização com o relatório completo da sincronização."""
+        viewer = ctk.CTkToplevel(self)
+        nome_limpo = self._limpar_nome_playlist(playlist_name)
+        viewer.title(f"Relatório Mirror Sync: {nome_limpo}")
+        viewer.geometry("900x700")
+        viewer.transient(self)
+        viewer.grab_set()
+
+        # Configuração de Ícone para a nova janela
+        if os.path.exists(self.caminho_icone):
+            try:
+                if IS_WIN:
+                    viewer.iconbitmap(self.caminho_icone)
+                else:
+                    viewer.iconphoto(False, self._icon_photo)
+            except:
+                pass
+
+        lbl_header = ctk.CTkLabel(viewer, text=f"RELATÓRIO DE SINCRONIZAÇÃO\nPlaylist: {nome_limpo}", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_header.pack(pady=10)
+
+        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family="Consolas", size=11))
+        textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
+        
+        textbox.insert("end", content)
+        textbox.configure(state="disabled")
