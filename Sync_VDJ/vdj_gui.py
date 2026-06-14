@@ -1,6 +1,6 @@
 import os
 import sys
-from PIL import Image
+from PIL import Image, ImageTk
 import customtkinter as ctk
 
 try:
@@ -25,7 +25,7 @@ except (ImportError, ValueError):
 # Importação do utilitário de caminho (necessário para o ícone)
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from engine_sync_app import get_resource_path
+from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
 
 class VirtualDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -45,14 +45,19 @@ class VirtualDJWindow(ctk.CTkToplevel):
         
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win'):
-            if os.path.exists(self.caminho_icone):
-                def aplicar_icone():
-                    try:
+        if os.path.exists(self.caminho_icone):
+            def aplicar_icone():
+                try:
+                    if IS_WIN:
                         self.iconbitmap(self.caminho_icone)
                         self.wm_iconbitmap(self.caminho_icone)
-                    except: pass
-                self.after(200, aplicar_icone)
+                    else:
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img)
+                        self.iconphoto(False, self._icon_photo)
+                except Exception:
+                    pass
+            self.after(200, aplicar_icone)
 
         # UI Inicial do Menu VDJ
         self.construir_ui()

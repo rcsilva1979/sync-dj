@@ -85,7 +85,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.txt = txt_strings # Usa as strings passadas
         
         self.title(f"{self.txt['title']} ({VERSAO_ATUAL})") # Adiciona a versão no título da janela
-        self.geometry("700x700")  # Altura aumentada para todos os elementos ficarem visíveis
+        self.geometry("700x650")  # Altura aumentada para todos os elementos ficarem visíveis
         self.resizable(False, False)
 
         # Garante que a janela abra na frente e ganhe foco, e seja modal
@@ -97,22 +97,26 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         if os.name == 'nt':
             try:
                 import ctypes
-                myappid = 'lehdeejay.enginesync.1.0'
+                myappid = 'syncdj.tools.hub.1.0'
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
             except Exception:
                 pass
 
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win'): 
-            if os.path.exists(self.caminho_icone):
-                def aplicar_janela_icone():
-                    try:
+        if os.path.exists(self.caminho_icone):
+            def aplicar_janela_icone():
+                try:
+                    if IS_WIN:
                         self.iconbitmap(self.caminho_icone)
-                        self.wm_iconbitmap(self.caminho_icone) # Adicionado para melhor exibição do ícone no Windows
-                    except Exception:
-                        pass
-                self.after(200, aplicar_janela_icone)
+                        self.wm_iconbitmap(self.caminho_icone)
+                    else:
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img)
+                        self.iconphoto(False, self._icon_photo)
+                except Exception:
+                    pass
+            self.after(200, aplicar_janela_icone)
         
         # Inicializa o backend
         self.manager = SyncManager()
@@ -127,8 +131,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.importar_hotcue = ctk.BooleanVar(value=False)
         self.sobrescrever_hotcue = ctk.BooleanVar(value=False)
         self.remover_orfas = ctk.BooleanVar(value=False)
-        self.log_ativo = ctk.BooleanVar(value=self.manager.config.get("log", True))
-        self.debug_ativo = ctk.BooleanVar(value=self.manager.config.get("debug", False))
         self.status_var = ctk.StringVar(value=self.txt["status_idle"])
         
         # Adiciona observadores para validar os campos e habilitar o botão de sync em tempo real
@@ -235,42 +237,10 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
                                         state="disabled", command=self.cancelar_sincronizacao)
         self.btn_cancel.pack(pady=(0, 6), fill="x", padx=60)
 
-        self.btn_doacao = ctk.CTkButton(self, text=self.txt["donation_text"], font=ctk.CTkFont(size=12, underline=True),
-                                        fg_color="transparent", text_color="#00E5A3", hover_color=None,
-                                        hover=False, cursor="hand2", command=self.abrir_link_doacao)
-        self.btn_doacao.pack(pady=(4, 6))
-
-        # ===== CHECKBOXES LOG / DEBUG (rodapé direito) =====
-        frame_debug = ctk.CTkFrame(self, fg_color="transparent")
-        frame_debug.pack(fill="x", padx=20, pady=(0, 8))
-
-        self.chk_log = ctk.CTkCheckBox(
-            frame_debug,
-            text=self.txt.get("log_checkbox", "LOG"),
-            variable=self.log_ativo,
-            width=60,
-            checkbox_width=14,
-            checkbox_height=14,
-            font=ctk.CTkFont(size=11),
-            fg_color="#00E5A3",
-            hover_color="#00b37e",
-            command=self.salvar_config_ui
-        )
-        self.chk_log.pack(side="right", padx=(5, 0))
-
-        self.chk_debug = ctk.CTkCheckBox(
-            frame_debug,
-            text=self.txt.get("debug_checkbox", "DEBUG"),
-            variable=self.debug_ativo,
-            width=80,
-            checkbox_width=14,
-            checkbox_height=14,
-            font=ctk.CTkFont(size=11),
-            fg_color="#00E5A3",
-            hover_color="#00b37e",
-            command=self.salvar_config_ui
-        )
-        self.chk_debug.pack(side="right", padx=(5, 10))
+        # self.btn_doacao = ctk.CTkButton(self, text=self.txt["donation_text"], font=ctk.CTkFont(size=12, underline=True),
+        #                                 fg_color="transparent", text_color="#00E5A3", hover_color=None,
+        #                                 hover=False, cursor="hand2", command=self.abrir_link_doacao)
+        # self.btn_doacao.pack(pady=(4, 6))
 
     def detectar_banco_por_drive(self):
         """Localiza o m.db automaticamente no mesmo disco da pasta de músicas."""
@@ -280,11 +250,20 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         banco_alvo = None
         drive_musica = None
 
+        def get_vol_id(path):
+            """Helper para identificar o 'Drive' no Win ou 'Volume' no Mac."""
+            abs_p = os.path.abspath(path)
+            if IS_WIN:
+                return os.path.splitdrive(abs_p)[0].upper()
+            else:
+                p = abs_p.split(os.sep)
+                return p[2] if len(p) > 2 and p[1] == 'Volumes' else 'System'
+
         # Prioridade 1: Banco no mesmo drive da pasta de músicas
         if pasta and os.path.exists(pasta):
-            drive_musica = os.path.splitdrive(os.path.abspath(pasta))[0].upper()
+            drive_musica = get_vol_id(pasta)
             for b in self.found_databases:
-                if os.path.splitdrive(b)[0].upper() == drive_musica:
+                if get_vol_id(b) == drive_musica:
                     banco_alvo = b
                     break
         
@@ -513,9 +492,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             "pasta_musicas": self.path_musicas.get(),
             "path_db": self.path_db.get(),
             "playlist_alvo": playlist_alvo,
-            "fazer_backup": self.fazer_backup.get(),
-            "log": self.log_ativo.get(),
-            "debug": self.debug_ativo.get()
+            "fazer_backup": self.fazer_backup.get()
         }
         self.manager.save_config(config_data)
     

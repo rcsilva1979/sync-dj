@@ -1,15 +1,30 @@
 import os
 import sys
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageTk
 from engine_gui import EngineSyncApp, get_resource_path
 from Sync_VDJ.vdj_gui import VirtualDJWindow
-from engine_sync_app import get_system_lang, STRINGS
+from engine_sync_app import get_system_lang, STRINGS, SyncManager
 from constants import IS_WIN, IS_MAC
 
 class LauncherHub(ctk.CTk):
     def __init__(self):
         super().__init__()
+
+        # Força o Windows a reconhecer o ícone na barra de tarefas (Taskbar)
+        if IS_WIN:
+            try:
+                import ctypes
+                # Altere para um identificador único do seu projeto
+                myappid = 'syncdj.tools.hub.1.0'
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+            except Exception:
+                pass
+
+        # Inicializa o backend para carregar configurações de log
+        self.manager = SyncManager()
+        self.log_ativo = ctk.BooleanVar(value=self.manager.config.get("log", True))
+        self.debug_ativo = ctk.BooleanVar(value=self.manager.config.get("debug", False))
 
         self.lang = get_system_lang()
         self.txt = STRINGS[self.lang]
@@ -21,9 +36,20 @@ class LauncherHub(ctk.CTk):
 
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win') and os.path.exists(self.caminho_icone):
-            try: self.iconbitmap(self.caminho_icone)
-            except: pass
+        if os.path.exists(self.caminho_icone):
+            def aplicar_icone():
+                try:
+                    if IS_WIN:
+                        self.iconbitmap(self.caminho_icone)
+                        self.wm_iconbitmap(self.caminho_icone)
+                    else:
+                        # No Mac/Linux, usamos iconphoto com suporte do PIL para ler o .ico
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img) # Mantém referência para evitar Garbage Collection
+                        self.iconphoto(False, self._icon_photo)
+                except Exception as e:
+                    pass
+            self.after(200, aplicar_icone)
 
         self.construir_ui()
 
@@ -86,8 +112,35 @@ class LauncherHub(ctk.CTk):
         )
         self.btn_relocate.pack(pady=10)
 
+        # Frame para configurações globais de log
+        frame_log = ctk.CTkFrame(self, fg_color="transparent")
+        frame_log.pack(side="bottom", fill="x", padx=40, pady=(0, 5))
+
+        self.chk_log = ctk.CTkCheckBox(
+            frame_log, text=self.txt.get("log_checkbox", "LOG"), 
+            variable=self.log_ativo, command=self.salvar_config_log,
+            width=60, checkbox_width=16, checkbox_height=16, font=ctk.CTkFont(size=11),
+            fg_color="#00E5A3", hover_color="#00b37e"
+        )
+        self.chk_log.pack(side="right")
+
+        self.chk_debug = ctk.CTkCheckBox(
+            frame_log, text=self.txt.get("debug_checkbox", "DEBUG"), 
+            variable=self.debug_ativo, command=self.salvar_config_log,
+            width=80, checkbox_width=16, checkbox_height=16, font=ctk.CTkFont(size=11),
+            fg_color="#00E5A3", hover_color="#00b37e"
+        )
+        self.chk_debug.pack(side="right", padx=(5, 10))
+
         lbl_footer = ctk.CTkLabel(self, text="Engine DJ Tools Suite", font=ctk.CTkFont(size=10), text_color="#555555")
-        lbl_footer.pack(side="bottom", pady=10)
+        lbl_footer.pack(side="bottom", pady=(5, 10))
+
+    def salvar_config_log(self):
+        """Salva as configurações de log no arquivo global."""
+        self.manager.save_config({
+            "log": self.log_ativo.get(),
+            "debug": self.debug_ativo.get()
+        })
 
     def abrir_mirror_sync(self):
         EngineSyncApp(self, self.txt) # Passa a instância do LauncherHub e as strings de texto

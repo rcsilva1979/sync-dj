@@ -299,16 +299,34 @@ class SyncManager:
 
     def engine_esta_aberto(self):
         try:
-            resultado = subprocess.check_output("tasklist", shell=True, text=True).lower()
-            return any(p in resultado for p in ["enginedj.exe", "engine dj.exe", "engine library service"])
-        except: return False
+            if IS_WIN:
+                resultado = subprocess.check_output("tasklist", shell=True, text=True).lower()
+                return any(p in resultado for p in ["enginedj.exe", "engine dj.exe", "engine library service"])
+            elif IS_MAC:
+                # No macOS, usamos ps -ax para listar processos e verificamos o nome do app
+                resultado = subprocess.check_output(["ps", "-ax"], text=True).lower()
+                return any(p in resultado for p in ["engine dj", "engine library service"])
+        except Exception:
+            return False
+        return False
+
+    def _get_vol_id(self, path):
+        """Helper para identificar o 'Drive' no Win ou 'Volume' no Mac."""
+        if not path: return ""
+        abs_p = os.path.abspath(path)
+        if IS_WIN:
+            return os.path.splitdrive(abs_p)[0].upper()
+        else:
+            p = abs_p.split(os.sep)
+            # No Mac, o volume fica em /Volumes/NomeVolume
+            return p[2] if len(p) > 2 and p[1] == 'Volumes' else 'System'
 
     def formatar_caminho_engine(self, caminho_arquivo, caminho_db):
         engine_library_dir = os.path.dirname(os.path.dirname(os.path.abspath(caminho_db)))
         arquivo_abs = os.path.abspath(caminho_arquivo)
         return os.path.relpath(arquivo_abs, engine_library_dir).replace("\\", "/")
 
-    def iniciar_log(self, pasta, db_path, nome_colecao, ativo_log, ativo_debug):
+    def iniciar_log(self, pasta, db_path, nome_colecao, ativo_log, ativo_debug, tool_name="SYNC"):
         if not ativo_log and not ativo_debug: return None, None
         
         log_dir = os.path.join(self.base_dir, "Reports")
@@ -321,9 +339,9 @@ class SyncManager:
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         def _criar_arquivo(modo):
-            path = os.path.join(log_dir, f"sync_{modo.lower()}_{timestamp}.txt")
+            path = os.path.join(log_dir, f"{tool_name.lower()}_{modo.lower()}_{timestamp}.txt")
             with open(path, "w", encoding="utf-8") as f:
-                f.write("=" * 60 + "\n" + f"  ENGINE DJ - MIRROR SYNC  ({VERSAO_ATUAL})\n" + "=" * 60 + "\n")
+                f.write("=" * 60 + "\n" + f"  ENGINE DJ - {tool_name.upper().replace('_', ' ')}  ({VERSAO_ATUAL})\n" + "=" * 60 + "\n")
                 f.write(f"Inicio        : {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n" + f"Pasta Musicas : {pasta}\n" + f"Banco de Dados: {db_path}\n")
                 f.write(f"Playlist Alvo : {nome_colecao}\n" + f"Modo Log      : {modo}\n" + "-" * 60 + "\n\n")
             return path
@@ -427,7 +445,7 @@ class SyncManager:
         # Prioriza a playlist selecionada na UI, senão usa o nome da pasta
         nome_colecao = self.config.get("playlist_alvo") or (os.path.basename(os.path.normpath(pasta)) if pasta else ui_strings["collection_name"])
 
-        log_paths = self.iniciar_log(pasta, db_path, nome_colecao, self.config.get("log", True), self.config.get("debug", False)) # type: ignore
+        log_paths = self.iniciar_log(pasta, db_path, nome_colecao, self.config.get("log", True), self.config.get("debug", False), tool_name="MIRROR_SYNC") # type: ignore
 
         # Validação de drives (relpath falha no Windows entre discos diferentes)
         if os.name == 'nt' and os.path.splitdrive(os.path.abspath(pasta))[0].lower() != os.path.splitdrive(os.path.abspath(db_path))[0].lower():
@@ -446,7 +464,7 @@ class SyncManager:
 
                 db_folder = os.path.dirname(db_path)
                 # Identifica o disco (ex: C, D) para incluir no nome do backup
-                drive = os.path.splitdrive(db_path)[0].replace(":", "").upper() or "PC"
+                drive = self._get_vol_id(db_path).replace(":", "").replace(" ", "_") or "PC"
 
                 timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
                 backup_name = os.path.join(backup_dir, f"Backup_Engine_Drive_{drive}_{timestamp}")

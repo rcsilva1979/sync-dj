@@ -5,7 +5,7 @@ import sys
 import sqlite3
 import xml.etree.ElementTree as ET
 from datetime import datetime
-from PIL import Image
+from PIL import Image, ImageTk
 from collections import defaultdict
 
 # Adiciona o diretório pai ao sys.path para importar módulos da raiz e pacotes irmãos
@@ -34,11 +34,17 @@ class PlaylistContentWindow(ctk.CTkToplevel):
         
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win') and os.path.exists(self.caminho_icone):
+        if os.path.exists(self.caminho_icone):
             def aplicar_icone():
                 try:
-                    self.iconbitmap(self.caminho_icone)
-                except: pass
+                    if IS_WIN:
+                        self.iconbitmap(self.caminho_icone)
+                    else:
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img)
+                        self.iconphoto(False, self._icon_photo)
+                except Exception:
+                    pass
             self.after(200, aplicar_icone)
 
         lbl = ctk.CTkLabel(self, text=self.txt.get("music_list_header", "Lista de Músicas: {title}").format(title=title), font=ctk.CTkFont(size=14, weight="bold"), text_color="#00E5A3")
@@ -55,7 +61,16 @@ class PlaylistContentWindow(ctk.CTkToplevel):
                 songs = root.findall("song")
                 
                 if songs:
-                    drive = os.path.splitdrive(xml_path)[0] or "PC"
+                    drive = "PC"
+                    if IS_WIN:
+                        drive = os.path.splitdrive(xml_path)[0] or "PC"
+                    elif IS_MAC:
+                        p = os.path.abspath(xml_path).split(os.sep)
+                        if len(p) > 2 and p[1] == 'Volumes':
+                            drive = p[2]
+                        else:
+                            drive = "System"
+
                     self.textbox.insert("end", f">>> DISCO {drive.upper()} <<<\n")
                     for song in songs:
                         total_tracks += 1
@@ -91,14 +106,19 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if IS_WIN:
-            if os.path.exists(self.caminho_icone):
-                def aplicar_icone():
-                    try:
+        if os.path.exists(self.caminho_icone):
+            def aplicar_icone():
+                try:
+                    if IS_WIN:
                         self.iconbitmap(self.caminho_icone)
                         self.wm_iconbitmap(self.caminho_icone)
-                    except: pass
-                self.after(200, aplicar_icone)
+                    else:
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img)
+                        self.iconphoto(False, self._icon_photo)
+                except Exception:
+                    pass
+            self.after(200, aplicar_icone)
 
         self.selected_vdj_playlist = ctk.StringVar()
         self.vdj_manager = VDJManager()
@@ -149,8 +169,16 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         if self.vdj_options:
             self.selected_vdj_playlist.set(self.vdj_options[0]) # type: ignore
 
+        def get_vol_id(path):
+            abs_p = os.path.abspath(path)
+            if IS_WIN:
+                return os.path.splitdrive(abs_p)[0].upper()
+            else:
+                p = abs_p.split(os.sep)
+                return p[2] if len(p) > 2 and p[1] == 'Volumes' else 'System'
+
         # Label Informativo unificado (Padrão Mirror Sync)
-        drives_totais = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+        drives_totais = sorted(list({get_vol_id(d) for d in self.found_databases}))
         texto_drives = " | ".join(drives_totais)
         self.lbl_db_auto = ctk.CTkLabel(self, font=ctk.CTkFont(size=12, weight="bold"))
         self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
@@ -210,6 +238,14 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         PlaylistContentWindow(self, display_name, xml_paths) # type: ignore
 
     def run_import(self):
+        # Verifica se o Engine DJ está aberto (mesma lógica e mensagens do Mirror Sync)
+        if self.manager.engine_esta_aberto():
+            messagebox.showwarning(
+                "Engine DJ em execução",
+                "Feche o Engine DJ antes de executar a sincronização ou limpeza.\n\nNenhuma alteração foi feita."
+            )
+            return
+
         display_name = self.selected_vdj_playlist.get()
         xml_paths = self.playlist_map.get(display_name)
         
@@ -233,12 +269,24 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         dbs_by_drive = {get_disk_id(db): db for db in self.found_databases}
         playlist_name = display_name.split(" (")[0]
 
+        # Inicializa log para Importação VDJ
+        log_paths = self.manager.iniciar_log(
+            "N/A", "VDJ to Engine", playlist_name, 
+            self.manager.config.get("log", True), self.manager.config.get("debug", False), 
+            tool_name="VDJ_IMPORT")
+
+        self.manager.log(log_paths, "=== INÍCIO DA IMPORTAÇÃO VIRTUAL DJ -> ENGINE DJ ===")
+        self.manager.log(log_paths, f"Playlist selecionada : {display_name}")
+        self.manager.log(log_paths, f"XMLs de origem        : {xml_paths}")
+
         try: # type: ignore
             self.update_status(self.txt.get("status_reading_vdj_playlist", "Lendo playlist VDJ..."), "#00E5A3")
+            self.manager.log(log_paths, "Lendo arquivos XML e mapeando faixas por drive...", nivel="debug")
             
             # Agrupa músicas pelo disco de origem
             tracks_by_drive = defaultdict(list)
             for xml_path in xml_paths:
+                self.manager.log(log_paths, f"Analisando XML: {xml_path}", nivel="debug")
                 tree = ET.parse(xml_path)
                 root = tree.getroot()
                 for song in root.findall("song"):
@@ -252,15 +300,23 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                             "artist": str(song.get("artist") or ""),
                             "title": str(song.get("title") or "")
                         })
+                    else:
+                        self.manager.log(log_paths, f"  [AVISO] Drive {drive} não encontrado ou sem banco Engine para: {path_abs}", nivel="debug")
 
             total_tracks = sum(len(t) for t in tracks_by_drive.values())
+            self.manager.log(log_paths, f"Total de faixas identificadas para importação: {total_tracks}")
+
             if total_tracks == 0: # type: ignore
+                self.manager.log(log_paths, "ERRO: Nenhuma faixa válida encontrada nos XMLs para os bancos de dados conectados.")
                 messagebox.showwarning(self.txt.get("warning_title", "Aviso"), self.txt.get("warning_no_tracks_in_xml", "Nenhuma faixa encontrada no arquivo XML."))
                 return
 
             processed_count = 0
             for drive, tracks in tracks_by_drive.items():
                 db_path = dbs_by_drive[drive]
+                self.manager.log(log_paths, f"\n--- PROCESSANDO DISCO {drive} ---")
+                self.manager.log(log_paths, f"Banco de dados: {db_path}", nivel="debug")
+
                 self.update_status(self.txt.get("importing_tracks_to_drive", "Importando {count} faixas para o banco do disco {drive}...").format(count=len(tracks), drive=drive), "#00E5A3")
                 
                 conn = sqlite3.connect(db_path) # type: ignore
@@ -274,17 +330,23 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                 row = cursor.fetchone()
                 if row: # type: ignore
                     playlist_id = row[0]
+                    self.manager.log(log_paths, f"Limpando playlist existente '{playlist_name}' (ID {playlist_id})")
                     cursor.execute("DELETE FROM PlaylistEntity WHERE listId = ?", (playlist_id,))
                 else:
+                    self.manager.log(log_paths, f"Criando nova playlist raiz: '{playlist_name}'")
                     cursor.execute("INSERT INTO Playlist (title, parentListId, isPersisted, nextListId, lastEditTime, isExplicitlyExported) VALUES (?, 0, 1, 0, ?, 1)", (playlist_name, now_iso))
                     playlist_id = cursor.lastrowid
 
                 added_track_ids = set()
                 for vtrack in tracks:
                     processed_count += 1
+                    title_v = vtrack.get('title') or "Sem Título"
+                    self.manager.log(log_paths, f"  [OK] Validando: {vtrack.get('artist')} - {title_v}", nivel="debug")
                     self.progress_bar.set(processed_count / total_tracks)
                     path_abs = vtrack["path"]
-                    if not os.path.exists(path_abs): continue # type: ignore
+                    if not os.path.exists(path_abs):
+                        self.manager.log(log_paths, f"    [FALTANTE] Arquivo físico não encontrado: {path_abs}")
+                        continue
                     
                     # O manager resolve o caminho relativo baseado no m.db deste disco
                     engine_rel = self.manager.formatar_caminho_engine(path_abs, db_path)
@@ -293,8 +355,10 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                     
                     if tr_row:
                         track_id = tr_row[0]
+                        self.manager.log(log_paths, f"    ↳ Faixa já existe na coleção (ID {track_id}).", nivel="debug")
                     else:
                         fname = os.path.basename(path_abs)
+                        self.manager.log(log_paths, f"    [TRACK +] Adicionando nova faixa à coleção: {fname}")
                         ext = os.path.splitext(fname)[1].replace('.', '')
                         cursor.execute("""
                             INSERT INTO Track (path, filename, title, artist, fileType, dateCreated, dateAdded, isAnalyzed, isAvailable, fileBytes)
@@ -304,6 +368,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
                     # Evita o erro 'Unique Constraint Failed' se a música estiver duplicada na playlist do VDJ
                     if track_id in added_track_ids:
+                        self.manager.log(log_paths, f"    [SKIP] Ignorada por duplicidade na playlist.", nivel="debug")
                         continue
                     added_track_ids.add(track_id)
 
@@ -316,11 +381,15 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
                 conn.commit()
                 conn.close()
+                self.manager.log(log_paths, f"--- DISCO {drive} FINALIZADO ---")
             
             self.update_status(self.txt.get("status_import_complete").format(processed_count=processed_count, num_drives=len(tracks_by_drive)), "green")
+            self.manager.log(log_paths, f"Processamento concluído: {processed_count} faixas sincronizadas entre os discos.")
+            self.manager.log(log_paths, "=== IMPORTAÇÃO CONCLUÍDA COM SUCESSO ===")
             messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("success_vdj_import").format(playlist_name=playlist_name))
             self.destroy()
 
         except Exception as e:
+            self.manager.log(log_paths, f"ERRO CRÍTICO NA IMPORTAÇÃO: {e}")
             self.update_status(self.txt.get("error_importing_vdj_playlist").format(error=e), "red")
             messagebox.showerror(self.txt.get("error_import_title", "Erro de Importação"), self.txt.get("error_importing_vdj_playlist_detail").format(error=e))

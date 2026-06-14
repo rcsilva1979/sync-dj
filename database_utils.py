@@ -32,31 +32,10 @@ def get_tracks_from_playlist(db_path, playlist_name):
         # Encontra o ID da playlist pelo título
         cursor = conn.execute("SELECT id FROM Playlist WHERE title = ? AND isPersisted = 1", (playlist_name,))
         playlist_row = cursor.fetchone()
-        
-        if playlist_row:
-            playlist_id = playlist_row["id"]
-            
-            # O Engine DJ armazena caminhos relativos à pasta "Engine Library"
-            # O banco m.db fica em: .../Engine Library/Database2/m.db
-            engine_library_dir = os.path.dirname(os.path.dirname(os.path.abspath(db_path)))
-
-            # Busca faixas associadas
-            cursor = conn.execute("""
-                SELECT T.title, T.artist, T.album, T.path, T.filename, T.length, T.bpm, T.year, T.fileType
-                FROM PlaylistEntity PE
-                JOIN Track T ON PE.trackId = T.id
-                WHERE PE.listId = ?
-                ORDER BY PE.id ASC
-            """, (playlist_id,))
-
-            for row in cursor.fetchall():
-                track_data = dict(row)
-                rel_path = track_data.get("path")
-                if rel_path:
-                    # Resolve o caminho absoluto e normaliza as barras para o formato do Windows (\)
-                    track_data["caminho_absoluto"] = os.path.normpath(os.path.join(engine_library_dir, rel_path))
-                tracks_info.append(track_data)
         conn.close()
+
+        if playlist_row:
+            return get_tracks_by_playlist_id(db_path, playlist_row["id"])
     except Exception as e:
         print(f"Erro ao obter faixas da playlist '{playlist_name}': {e}")
     return tracks_info
@@ -70,30 +49,59 @@ def get_tracks_by_playlist_id(db_path, playlist_id):
     
     tracks_info = []
     try:
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
+        # 1. Localiza todos os bancos disponíveis e cria um mapa UUID -> Caminho do Banco
+        encontrados = localizar_bancos_dados_engine()
+        uuid_to_db = {get_database_uuid(b): b for b in encontrados if b}
         
-        # O Engine DJ armazena caminhos relativos à pasta "Engine Library"
-        # O banco m.db fica em: .../Engine Library/Database2/m.db
-        engine_library_dir = os.path.dirname(os.path.dirname(os.path.abspath(db_path)))
+        # Cache de diretórios raiz da biblioteca para cada banco (Engine Library)
+        lib_dirs = {u: os.path.dirname(os.path.dirname(os.path.abspath(p))) for u, p in uuid_to_db.items()}
 
-        # Busca faixas associadas
-        cursor = conn.execute("""
-            SELECT PE.id AS entry_id, T.id, T.title, T.artist, T.album, T.path, T.filename, T.length, T.bpm, T.year, T.fileType
-            FROM PlaylistEntity PE
-            JOIN Track T ON PE.trackId = T.id
-            WHERE PE.listId = ?
-            ORDER BY PE.id ASC
-        """, (playlist_id,))
+        # 2. Busca as entidades da playlist no banco de origem
+        conn_origem = sqlite3.connect(db_path)
+        conn_origem.row_factory = sqlite3.Row
+        entities = conn_origem.execute(
+            "SELECT id AS entry_id, trackId, databaseUuid FROM PlaylistEntity WHERE listId = ? ORDER BY id ASC", 
+            (playlist_id,)
+        ).fetchall()
 
-        for row in cursor.fetchall():
-            track_data = dict(row)
-            rel_path = track_data.get("path")
-            if rel_path:
-                # Resolve o caminho absoluto e normaliza as barras para o formato do Windows (\)
-                track_data["caminho_absoluto"] = os.path.normpath(os.path.join(engine_library_dir, rel_path))
-            tracks_info.append(track_data)
-        conn.close()
+        # Cache de conexões para evitar abrir/fechar repetidamente durante a análise
+        conexoes = {get_database_uuid(db_path): conn_origem}
+
+        for ent in entities:
+            t_id = ent["trackId"]
+            db_uuid = ent["databaseUuid"]
+            
+            # Resolve qual banco contém os dados desta música específica
+            target_db_path = uuid_to_db.get(db_uuid) or db_path
+            target_uuid = db_uuid if db_uuid in uuid_to_db else get_database_uuid(db_path)
+
+            if target_uuid not in conexoes:
+                try:
+                    c = sqlite3.connect(target_db_path)
+                    c.row_factory = sqlite3.Row
+                    conexoes[target_uuid] = c
+                except: continue
+
+            # 3. Busca detalhes da música no banco correto (onde ela reside)
+            cursor = conexoes[target_uuid].execute(
+                "SELECT id, title, artist, album, path, filename, length, bpm, year, fileType, fileBytes FROM Track WHERE id = ?",
+                (t_id,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                track_data = dict(row)
+                track_data["entry_id"] = ent["entry_id"]
+                rel_path = track_data.get("path")
+                engine_lib_dir = lib_dirs.get(target_uuid) or os.path.dirname(os.path.dirname(os.path.abspath(target_db_path)))
+                
+                if rel_path:
+                    track_data["caminho_absoluto"] = os.path.normpath(os.path.join(engine_lib_dir, rel_path))
+                tracks_info.append(track_data)
+
+        # 4. Fecha todas as conexões abertas
+        for c in conexoes.values():
+            c.close()
     except Exception as e:
         print(f"Erro ao obter faixas da playlist ID '{playlist_id}': {e}")
     return tracks_info
@@ -122,8 +130,14 @@ def get_all_playlists_hierarchical(db_path):
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
         
-        # Busca todas as playlists persistidas
-        rows = conn.execute("SELECT id, title, parentListId FROM Playlist WHERE isPersisted = 1").fetchall()
+        # Busca apenas playlists que possuem músicas vinculadas.
+        # Isso evita que o usuário selecione "Pastas" de sistema que podem conter links indesejados.
+        rows = conn.execute("""
+            SELECT DISTINCT P.id, P.title, P.parentListId 
+            FROM Playlist P
+            INNER JOIN PlaylistEntity PE ON P.id = PE.listId
+            WHERE P.isPersisted = 1
+        """).fetchall()
         
         # Cria um dicionário para busca rápida por ID
         playlists_by_id = {row["id"]: row for row in rows}
@@ -163,78 +177,67 @@ def localizar_bancos_dados_engine():
     if os.path.exists(path_music):
         encontrados.append(os.path.normpath(path_music))
         
-    # 2. Varre volumes externos/secundários (Windows e Mac)
+    # 2. Varre a raiz de volumes do sistema (Windows)
     if IS_WIN:
         for letra in string.ascii_uppercase:
             raiz = f"{letra}:\\"
             if os.path.exists(raiz):
                 try:
                     import ctypes
-                    # DRIVE_FIXED = 3, DRIVE_REMOVABLE = 2
-                    if ctypes.windll.kernel32.GetDriveTypeW(raiz) in (2, 3):
+                    if ctypes.windll.kernel32.GetDriveTypeW(raiz) == 3: # DRIVE_FIXED
                         path_disco = os.path.join(raiz, "Engine Library", "Database2", "m.db")
                         if os.path.exists(path_disco):
                             norm = os.path.normpath(path_disco)
                             if norm not in encontrados:
                                 encontrados.append(norm)
-                except Exception: pass
+                except Exception:
+                    pass
+    
+    # 3. Varre volumes montados no macOS (/Volumes)
     elif IS_MAC:
-        volumes_path = "/Volumes"
-        if os.path.exists(volumes_path):
-            for volume in os.listdir(volumes_path):
-                raiz = os.path.join(volumes_path, volume)
-                path_disco = os.path.join(raiz, "Engine Library", "Database2", "m.db")
-                if os.path.exists(path_disco):
-                    norm = os.path.normpath(path_disco)
-                    if norm not in encontrados:
-                        encontrados.append(norm)
+        volumes_dir = "/Volumes"
+        if os.path.exists(volumes_dir):
+            try:
+                for vol in os.listdir(volumes_dir):
+                    path_vol = os.path.join(volumes_dir, vol)
+                    path_disco = os.path.join(path_vol, "Engine Library", "Database2", "m.db")
+                    if os.path.exists(path_disco):
+                        norm = os.path.normpath(path_disco)
+                        if norm not in encontrados:
+                            encontrados.append(norm)
+            except Exception:
+                pass
 
     return encontrados
 
-def get_track_id_by_path(db_path, rel_path):
-    """Retorna o ID da track se o caminho relativo já existir no banco (normalizando slashes)."""
-    if not db_path or not os.path.exists(db_path):
-        return None
+def update_track_path(db_path, track_id, new_path):
+    """Atualiza o caminho de uma música no banco de dados Engine DJ."""
     try:
         conn = sqlite3.connect(db_path)
-        normalized_path = rel_path.replace('\\', '/')
-        row = conn.execute("SELECT id FROM Track WHERE REPLACE(path, '\\', '/') = ?", (normalized_path,)).fetchone()
+        conn.execute("UPDATE Track SET path = ?, isAvailable = 1 WHERE id = ?", (new_path, track_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+def get_track_id_by_path(db_path, rel_path):
+    """Busca o ID de uma música através do seu caminho relativo."""
+    try:
+        conn = sqlite3.connect(db_path)
+        row = conn.execute("SELECT id FROM Track WHERE REPLACE(path, '\\', '/') = ? LIMIT 1", (rel_path.replace("\\", "/"),)).fetchone()
         conn.close()
         return row[0] if row else None
     except Exception:
         return None
 
 def update_playlist_entry_track(db_path, entry_id, new_track_id):
-    """Atualiza o trackId de uma entrada específica na PlaylistEntity (Swapping)."""
-    if not db_path or not os.path.exists(db_path):
-        return False
+    """Altera o trackId vinculado a uma entrada específica da playlist (PlaylistEntity)."""
     try:
         conn = sqlite3.connect(db_path)
         conn.execute("UPDATE PlaylistEntity SET trackId = ? WHERE id = ?", (new_track_id, entry_id))
         conn.commit()
         conn.close()
         return True
-    except Exception as e:
-        print(f"Erro ao atualizar entrada {entry_id} da playlist: {e}")
-        return False
-
-def update_track_path(db_path, track_id, new_rel_path):
-    """Atualiza o caminho relativo de uma música no banco de dados Engine DJ."""
-    if not db_path or not os.path.exists(db_path):
-        return False
-    try:
-        conn = sqlite3.connect(db_path)
-        # Verifica se o caminho já existe em outra track para evitar erro de UNIQUE constraint
-        # Se o Engine DJ já conhece o arquivo em outro registro, não podemos duplicar o path
-        check = conn.execute("SELECT id FROM Track WHERE path = ? AND id != ?", (new_rel_path, track_id)).fetchone()
-        if check:
-            conn.close()
-            return False
-            
-        conn.execute("UPDATE Track SET path = ? WHERE id = ?", (new_rel_path, track_id))
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"Erro ao atualizar caminho da música {track_id}: {e}")
+    except Exception:
         return False

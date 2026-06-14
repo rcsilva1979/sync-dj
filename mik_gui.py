@@ -1,7 +1,7 @@
 import os
 import sys
 import customtkinter as ctk
-from PIL import Image
+from PIL import Image, ImageTk
 from tkinter import messagebox
 from collections import defaultdict
 from pathlib import Path
@@ -10,7 +10,7 @@ import threading
 
 # Importações do projeto
 from database_utils import localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id
-from engine_sync_app import get_resource_path
+from engine_sync_app import get_resource_path, SyncManager
 from le_json import read_mp3
 from constants import IS_WIN, IS_MAC
 from hotcue_normalizer import normalize_hotcues
@@ -32,11 +32,22 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.grab_set()
         self.after(10, self.lift)
 
+        self.manager = SyncManager()
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win') and os.path.exists(self.caminho_icone):
-            try: self.iconbitmap(self.caminho_icone)
-            except: pass
+        if os.path.exists(self.caminho_icone):
+            def aplicar_icone():
+                try:
+                    if IS_WIN:
+                        self.iconbitmap(self.caminho_icone)
+                        self.wm_iconbitmap(self.caminho_icone)
+                    else:
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img)
+                        self.iconphoto(False, self._icon_photo)
+                except Exception:
+                    pass
+            self.after(200, aplicar_icone)
 
         self.selected_playlist = ctk.StringVar()
         self.sobrescrever_hotcue = ctk.BooleanVar(value=False)
@@ -158,9 +169,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
 
         playlist_atual = self.selected_playlist.get()
         dbs_com_playlist = [pair[0] for pair in self.playlist_db_map.get(playlist_atual, [])]
-        drives_com_playlist = {os.path.splitdrive(db)[0].upper() for db in dbs_com_playlist}
+        drives_com_playlist = {self.manager._get_vol_id(db) for db in dbs_com_playlist}
 
-        drives_totais = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+        drives_totais = sorted(list({self.manager._get_vol_id(d) for d in self.found_databases}))
         
         # Monta a string de drives destacando os que contêm a playlist (ex: [C:] | D:)
         texto_drives = " | ".join([
@@ -181,89 +192,135 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         if not db_pl_pairs:
             return
 
-        # Janela de visualização
+        # UI feedback inicial
+        self.btn_list.configure(state="disabled")
+        self.btn_import.configure(state="disabled")
+        self.combo_playlist.configure(state="disabled")
+        self.progress_bar.set(0)
+        self.lbl_status.configure(text=self.txt.get("status_counting", "Calculando..."), text_color="#3498DB")
+
+        def task_list():
+            total_tracks = 0
+            # Conta o total de faixas primeiro (consultas ao banco são rápidas)
+            for db_path, pl_id in db_pl_pairs:
+                tracks = get_tracks_by_playlist_id(db_path, pl_id)
+                total_tracks += len(tracks)
+
+            if total_tracks == 0:
+                self.after(0, lambda: [
+                    self.btn_list.configure(state="normal"),
+                    self.btn_import.configure(state="normal"),
+                    self.combo_playlist.configure(state="normal"),
+                    self.lbl_status.configure(text=self.txt.get("no_tracks_found_generic", "Nenhuma música encontrada."))
+                ])
+                return
+
+            all_report_lines = []
+            processed = 0
+            for db_path, pl_id in db_pl_pairs:
+                drive = self.manager._get_vol_id(db_path)
+                all_report_lines.append(f"--- BANCO DETECTADO NO DRIVE {drive} ---\n")
+                
+                tracks = get_tracks_by_playlist_id(db_path, pl_id)
+                
+                for t in tracks:
+                    processed += 1
+                    progress = processed / total_tracks
+                    title_track = t.get('title', '...')
+                    # Atualiza progresso e status na janela principal
+                    self.after(0, lambda p=progress, m=title_track, d=drive: [
+                        self.progress_bar.set(p),
+                        self.lbl_status.configure(text=f"[{d}] Lendo: {m}")
+                    ])
+
+                    artist = t.get('artist', self.txt.get('unknown_artist', 'Desconhecido'))
+                    title = t.get('title', self.txt.get('untitled_track', 'Sem Título'))
+                    filename = t.get('filename', self.txt.get('not_found', 'Não localizada'))
+                    filepath = t.get("caminho_absoluto")
+
+                    lines = [
+                        f"FAIXA: {artist} - {title}\n",
+                        f"  {self.txt.get('mik_filename_label', 'Nome do Arquivo:')} {filename}\n",
+                        f"  {self.txt.get('mik_location_label', 'Localização:')} {filepath}\n"
+                    ]
+                    
+                    if filepath and os.path.exists(filepath) and filepath.lower().endswith(".mp3"):
+                        try:
+                            mp3_data = read_mp3(Path(filepath))
+                            hotcues = normalize_hotcues(mp3_data.get("hotcues", []))
+                            if hotcues:
+                                header_left = self.txt.get('mik_hotcue_left_col_header', 'Hotcues (1-4)')
+                                header_right = self.txt.get('mik_hotcue_right_col_header', 'Hotcues (5-8)')
+                                lines.append(f"  ↳ [TAG] {header_left:<40} {header_right}\n")
+                                lines.append(f"  {'-'*45} {'-'*45}\n")
+
+                                hotcues_left = hotcues[:4]
+                                hotcues_right = hotcues[4:8]
+                                max_cues = max(len(hotcues_left), len(hotcues_right))
+                                for i in range(max_cues):
+                                    l_info = f"Cue {hotcues_left[i].get('num')}: {hotcues_left[i].get('name', '')} @ {format_time(hotcues_left[i].get('pos_seconds'))}" if i < len(hotcues_left) else ""
+                                    r_info = f"Cue {hotcues_right[i].get('num')}: {hotcues_right[i].get('name', '')} @ {format_time(hotcues_right[i].get('pos_seconds'))}" if i < len(hotcues_right) else ""
+                                    lines.append(f"  {l_info:<45} {r_info}\n")
+                            else:
+                                lines.append(f"  ↳ [TAG] {self.txt.get('mik_no_hotcues_found', 'Nenhum Hotcue encontrado na tag MP3.')}\n")
+                        except Exception as e:
+                            lines.append(f"  ↳ [ERRO] {self.txt.get('mik_error_reading_hotcues', 'Falha ao ler hotcues:')} {str(e)}\n")
+                    else:
+                        lines.append(f"  ↳ [INFO] {self.txt.get('mik_detection_info', 'Detecção disponível apenas para arquivos MP3 locais.')}\n")
+                    
+                    lines.append("-" * 40 + "\n")
+                    all_report_lines.extend(lines)
+                
+                all_report_lines.append("\n")
+
+            report_text = "".join(all_report_lines)
+            self.after(0, lambda: [
+                self.btn_list.configure(state="normal"),
+                self.btn_import.configure(state="normal"),
+                self.combo_playlist.configure(state="normal"),
+                self.progress_bar.set(1.0),
+                self.lbl_status.configure(text=self.txt.get("status_done", "Concluído"), text_color="#00E5A3"),
+                self._abrir_janela_relatorio(playlist_name, report_text)
+            ])
+
+        threading.Thread(target=task_list, daemon=True).start()
+
+    def _abrir_janela_relatorio(self, playlist_name, content):
+        """Abre a janela de visualização com o conteúdo completo processado."""
         viewer = ctk.CTkToplevel(self)
         viewer.title(f"Músicas e Hotcues: {playlist_name}")
         viewer.geometry("900x700")
         viewer.transient(self)
         viewer.grab_set()
 
+        # Configuração de Ícone para a nova janela
+        if os.path.exists(self.caminho_icone):
+            try:
+                if IS_WIN:
+                    viewer.iconbitmap(self.caminho_icone)
+                else:
+                    viewer.iconphoto(False, self._icon_photo)
+            except:
+                pass
+
         lbl_header = ctk.CTkLabel(viewer, text=f"Conteúdo da Playlist: {playlist_name}", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_header.pack(pady=10)
 
         textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family="Consolas", size=11))
         textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
-
-        total_tracks_found = 0
-
-        for db_path, pl_id in db_pl_pairs:
-            drive = os.path.splitdrive(db_path)[0]
-            textbox.insert("end", f"--- BANCO DETECTADO NO DRIVE {drive} ---\n")
-            
-            tracks = get_tracks_by_playlist_id(db_path, pl_id)
-            if not tracks:
-                textbox.insert("end", "Nenhuma música encontrada neste banco.\n\n")
-                continue
-            
-            total_tracks_found += len(tracks)
-            for t in tracks:
-                artist = t.get('artist', self.txt.get('unknown_artist', 'Desconhecido'))
-                title = t.get('title', self.txt.get('untitled_track', 'Sem Título'))
-                filename = t.get('filename', self.txt.get('not_found', 'Não localizada'))
-                filepath = t.get("caminho_absoluto")
-
-                textbox.insert("end", f"FAIXA: {artist} - {title}\n")
-                textbox.insert("end", f"  {self.txt.get('mik_filename_label', 'Nome do Arquivo:')} {filename}\n")
-                textbox.insert("end", f"  {self.txt.get('mik_location_label', 'Localização:')} {filepath}\n")
-                
-                if filepath and os.path.exists(filepath) and filepath.lower().endswith(".mp3"):
-                    try:
-                        mp3_data = read_mp3(Path(filepath))
-                        hotcues = normalize_hotcues(mp3_data.get("hotcues", []))
-                        if hotcues:
-                            hotcues_left = hotcues[:4]
-                            hotcues_right = hotcues[4:8] # Assuming max 8 hotcues
-
-                            # Prepare lines for left and right columns
-                            left_lines = []
-                            for hc in hotcues_left:
-                                cue_info = f"Cue {hc.get('num')}: {hc.get('name', '')} @ {format_time(hc.get('pos_seconds'))}"
-                                left_lines.append(cue_info)
-
-                            right_lines = []
-                            for hc in hotcues_right:
-                                cue_info = f"Cue {hc.get('num')}: {hc.get('name', '')} @ {format_time(hc.get('pos_seconds'))}"
-                                right_lines.append(cue_info)
-
-                            # Pad shorter lists with empty strings
-                            max_lines = max(len(left_lines), len(right_lines))
-                            left_lines.extend([""] * (max_lines - len(left_lines)))
-                            right_lines.extend([""] * (max_lines - len(right_lines)))
-
-                            # Headers
-                            header_left = self.txt.get('mik_hotcue_left_col_header', 'Hotcues (1-4)')
-                            header_right = self.txt.get('mik_hotcue_right_col_header', 'Hotcues (5-8)')
-                            textbox.insert("end", f"  ↳ [TAG] {header_left:<40} {header_right}\n")
-                            textbox.insert("end", f"  {'-'*45} {'-'*45}\n") # Separator, adjusted for padding
-
-                            # Print hotcues side-by-side
-                            for i in range(max_lines):
-                                textbox.insert("end", f"  {left_lines[i]:<45} {right_lines[i]}\n")
-                        else:
-                            textbox.insert("end", f"  ↳ [TAG] {self.txt.get('mik_no_hotcues_found', 'Nenhum Hotcue encontrado na tag MP3.')}\n")
-                    except Exception as e:
-                        textbox.insert("end", f"  ↳ [ERRO] {self.txt.get('mik_error_reading_hotcues', 'Falha ao ler hotcues:')} {str(e)}\n")
-                else:
-                    textbox.insert("end", f"  ↳ [INFO] {self.txt.get('mik_detection_info', 'Detecção disponível apenas para arquivos MP3 locais.')}\n")
-                textbox.insert("end", "-" * 40 + "\n")
-            textbox.insert("end", "\n")
-
-        if total_tracks_found == 0:
-            textbox.insert("end", "Nenhuma música localizada.")
-
+        
+        textbox.insert("end", content)
         textbox.configure(state="disabled")
 
     def iniciar_importacao(self):
+        # Verifica se o Engine DJ está aberto (mesma lógica e mensagens do Mirror Sync)
+        if self.manager.engine_esta_aberto():
+            messagebox.showwarning(
+                "Engine DJ em execução",
+                "Feche o Engine DJ antes de executar a sincronização ou limpeza.\n\nNenhuma alteração foi feita."
+            )
+            return
+
         playlist_name = self.selected_playlist.get()
         if not playlist_name:
             messagebox.showwarning("Aviso", "Por favor, selecione uma playlist.")
@@ -279,7 +336,14 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.combo_playlist.configure(state="disabled")
         self.lbl_status.configure(text=self.txt.get("status_counting", "Calculando..."), text_color="#3498DB")
 
+        # Inicializa o log para Mixed In Key
+        log_paths = self.manager.iniciar_log(
+            "N/A", "Multi-DB Hotcues", playlist_name, 
+            self.manager.config.get("log", True), self.manager.config.get("debug", False), 
+            tool_name="MIXED_IN_KEY")
+
         def task():
+            self.manager.log(log_paths, f"--- INÍCIO DA IMPORTAÇÃO DE HOTCUES [{playlist_name}] ---")
             total_tracks = 0
             for db_path, pl_id in db_pl_pairs:
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)
@@ -294,40 +358,73 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             overwriting = self.sobrescrever_hotcue.get()
 
             for db_path, pl_id in db_pl_pairs:
-                drive = os.path.splitdrive(db_path)[0]
+                drive = self.manager._get_vol_id(db_path)
+                self.manager.log(log_paths, f"\n--- PROCESSANDO BANCO: {db_path} (Drive {drive}) ---")
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)
                 
+                seen_paths_in_db = set()
                 try:
                     conn = sqlite3.connect(db_path)
+                    cursor = self.manager.criar_cursor_log(conn, log_paths)
+                    
                     for t in tracks:
                         processed_tracks += 1
                         progress = processed_tracks / total_tracks
                         self.after(0, lambda p=progress, m=t.get('title'): [self.progress_bar.set(p), self.lbl_status.configure(text=f"[{drive}] {m}")])
+                        title_full = f"{t.get('artist')} - {t.get('title')}"
+                        self.manager.log(log_paths, f"[ARQUIVO] {title_full}")
 
                         filepath = t.get("caminho_absoluto")
                         if not filepath or not os.path.exists(filepath) or not filepath.lower().endswith(".mp3"):
+                            self.manager.log(log_paths, f"  [AVISO] Arquivo não encontrado ou não é MP3: {filepath}")
                             continue
+
+                        # Evita processar o mesmo arquivo físico duas vezes no mesmo banco (se houver trackId duplicado)
+                        norm_path = os.path.normcase(os.path.abspath(filepath))
+                        if norm_path in seen_paths_in_db:
+                            self.manager.log(log_paths, f"  [SKIP] Arquivo já processado neste banco (ID duplicado ignorado).", nivel="debug")
+                            continue
+                        seen_paths_in_db.add(norm_path)
 
                         track_id = t.get("id")
                         
                         # 1. Obter Hotcues atuais do Banco
-                        row = conn.execute("SELECT quickCues FROM PerformanceData WHERE trackId = ?", (track_id,)).fetchone()
+                        cursor.execute("SELECT quickCues FROM PerformanceData WHERE trackId = ?", (track_id,))
+                        row = cursor.fetchone()
                         existing_blob = row[0] if row else None
                         db_cues = {}
                         if existing_blob:
                             try:
                                 parsed = parse_quick_cues(existing_blob)
-                                for hc in parsed: db_cues[hc.cue_number] = hc
+                                self.manager.log(log_paths, f"  [DB] Encontrados {len(parsed)} hotcues no banco.", nivel="debug")
+                                for hc in parsed: 
+                                    db_cues[hc.cue_number] = hc
+                                    self.manager.log(log_paths, f"    [DB] ↳ Cue {hc.cue_number}: '{hc.label}' em {format_time(hc.position_seconds)}", nivel="debug")
                             except: pass
 
                         # 2. Obter Hotcues das Tags MP3
                         try:
                             mp3_data = read_mp3(Path(filepath))
                             tag_hotcues = normalize_hotcues(mp3_data.get("hotcues", []))
-                            tags_by_slot = {int(hc["num"]): hc for hc in tag_hotcues if str(hc.get("num", "")).isdigit()}
-                        except: continue
+                            
+                            tags_by_slot = {}
+                            slots_encontrados = []
+                            for hc in tag_hotcues:
+                                if str(hc.get("num", "")).isdigit():
+                                    num = int(hc["num"])
+                                    tags_by_slot[num] = hc
+                                    slots_encontrados.append(f"#{num}")
+                                    self.manager.log(log_paths, f"    [TAG] ↳ Cue {num}: '{hc.get('name')}' em {hc.get('time')}", nivel="debug")
+                            
+                            resumo_tags = ", ".join(slots_encontrados) if slots_encontrados else "Nenhum"
+                            self.manager.log(log_paths, f"  [TAGS] {len(tag_hotcues)} hotcue(s) identificado(s): {resumo_tags}")
+                        except: 
+                            self.manager.log(log_paths, f"  [ERRO] Falha ao ler tags de: {os.path.basename(filepath)}")
+                            continue
 
-                        if not tags_by_slot: continue
+                        if not tags_by_slot:
+                            self.manager.log(log_paths, f"  [INFO] Nenhuma tag de hotcue encontrada.")
+                            continue
 
                         # 3. Mesclar de acordo com a regra
                         final_cues = []
@@ -353,15 +450,20 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                                     has_changes = True
 
                         if has_changes:
+                            self.manager.log(log_paths, f"  [AÇÃO] Gravando {len(final_cues)} hotcues no Engine DJ.")
                             new_blob = encode_quick_cues(final_cues, existing_blob=existing_blob)
-                            conn.execute("INSERT INTO PerformanceData (trackId, quickCues) VALUES (?, ?) ON CONFLICT(trackId) DO UPDATE SET quickCues = excluded.quickCues", (track_id, sqlite3.Binary(new_blob)))
+                            # Usando cursor para que o comando SQL seja registrado no Log de Debug via LoggingCursor
+                            cursor.execute("INSERT INTO PerformanceData (trackId, quickCues) VALUES (?, ?) ON CONFLICT(trackId) DO UPDATE SET quickCues = excluded.quickCues", (track_id, sqlite3.Binary(new_blob)))
                             updated_tracks_count += 1
+                        else:
+                            self.manager.log(log_paths, f"  [SKIP] Nenhuma alteração necessária (Banco e Tags já sincronizados).", nivel="debug")
 
                     conn.commit()
                     conn.close()
                 except Exception as e:
-                    print(f"Erro no banco {db_path}: {e}")
+                    self.manager.log(log_paths, f"  [ERRO CRÍTICO] Falha no banco {db_path}: {e}")
 
+            self.manager.log(log_paths, f"\n{'='*60}\nIMPORTAÇÃO CONCLUÍDA\nTotal analisado: {processed_tracks}\nAtualizados: {updated_tracks_count}\n{'='*60}")
             self.after(0, lambda: self.finalizar_importacao(updated_tracks_count))
 
         threading.Thread(target=task, daemon=True).start()

@@ -6,11 +6,12 @@ import xml.dom.minidom as minidom
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from pathlib import Path
-
+from PIL import Image, ImageTk
+ 
 # Importação do utilitário de caminho
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from engine_sync_app import get_resource_path
+from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
 from constants import STRINGS, get_system_lang
 
 class CSVToVDJConverter(ctk.CTk):
@@ -24,9 +25,19 @@ class CSVToVDJConverter(ctk.CTk):
 
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
-        if sys.platform.startswith('win') and os.path.exists(self.caminho_icone):
-            try: self.iconbitmap(self.caminho_icone)
-            except: pass
+        if os.path.exists(self.caminho_icone):
+            def aplicar_icone():
+                try:
+                    if IS_WIN:
+                        self.iconbitmap(self.caminho_icone)
+                        self.wm_iconbitmap(self.caminho_icone)
+                    else:
+                        img = Image.open(self.caminho_icone)
+                        self._icon_photo = ImageTk.PhotoImage(img)
+                        self.iconphoto(False, self._icon_photo)
+                except Exception:
+                    pass
+            self.after(200, aplicar_icone)
 
         # Variáveis
         self.csv_path = ctk.StringVar()
