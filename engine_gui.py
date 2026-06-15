@@ -3,11 +3,9 @@ import sys
 import threading
 import webbrowser
 import tkinter as tk
-import re
 from tkinter import filedialog, messagebox
 from PIL import Image
 import customtkinter as ctk
-
 # Importações do nosso backend e constantes
 from constants import (
     VERSAO_ATUAL, 
@@ -15,66 +13,19 @@ from constants import (
     GITHUB_RELEASE_URL, 
     STRINGS,
     APP_NAME,
-    IS_WIN,
-    IS_MAC
+    IS_WIN, IS_MAC,
+    FONT_FAMILY,
+    COLOR_BG_DARK,
+    COLOR_TEXT_NORMAL,
+    COLOR_TEXT_MUTED,
+    COLOR_SWITCH_OFF,
+    CORNER_RADIUS_NONE
 )
 from database_utils import get_playlists_from_db, get_database_uuid
 from engine_sync_app import (
     SyncManager, get_system_lang, get_resource_path, 
-    check_for_updates, _HOTCUE_DISPONIVEL
+    _HOTCUE_DISPONIVEL
 )
-
-# ================= POP-UP DE ATUALIZAÇÃO =================
-class PopUpAtualizacao(ctk.CTkToplevel):
-    def __init__(self, master, txt, versao_nova):
-        super().__init__(master)
-        
-        self.title(txt["update_title"])
-        self.geometry("400x250")
-        self.resizable(False, False)
-        self.configure(fg_color="#242424")
-
-        # Toca o som de notificação nativo do sistema (Aviso de Atualização)
-        if sys.platform.startswith('win'):
-            try:
-                import winsound
-                # Usa MB_ICONEXCLAMATION para soar como um alerta/aviso
-                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
-            except:
-                self.bell()
-        else:
-            self.bell()
-        
-        if sys.platform.startswith('win') and hasattr(master, 'caminho_icone') and os.path.exists(master.caminho_icone):
-            def aplicar_icone():
-                try:
-                    self.iconbitmap(master.caminho_icone)
-                    self.wm_iconbitmap(master.caminho_icone)
-                except Exception:
-                    pass
-            self.after(250, aplicar_icone)
-        
-        self.transient(master)
-        self.grab_set()
-
-        lbl_header = ctk.CTkLabel(self, text=txt["update_title"], font=ctk.CTkFont(size=20, weight="bold"), text_color="#00E5A3")
-        lbl_header.pack(pady=(20, 10))
-
-        lbl_msg = ctk.CTkLabel(self, text=txt["update_msg"].format(VERSAO_ATUAL, versao_nova), font=ctk.CTkFont(size=14))
-        lbl_msg.pack(pady=(5, 20))
-
-        frame_botoes = ctk.CTkFrame(self, fg_color="transparent")
-        frame_botoes.pack(pady=10)
-
-        btn_baixar = ctk.CTkButton(frame_botoes, text=txt["btn_yes"], font=ctk.CTkFont(weight="bold"), fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", command=self.baixar_atualizacao)
-        btn_baixar.pack(side="left", padx=10)
-
-        btn_fechar = ctk.CTkButton(frame_botoes, text=txt["btn_no"], font=ctk.CTkFont(weight="bold"), fg_color="transparent", border_width=1, border_color="#555555", hover_color="#333333", command=self.destroy)
-        btn_fechar.pack(side="left", padx=10)
-
-    def baixar_atualizacao(self):
-        webbrowser.open(GITHUB_RELEASE_URL)
-        self.destroy()
 
 # ================= INTERFACE GRÁFICA =================
 ctk.set_appearance_mode("Dark")
@@ -93,7 +44,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.transient(master)
         self.grab_set()
         
-        self.configure(fg_color="#242424")
+        self.configure(fg_color=COLOR_BG_DARK)
         
         if os.name == 'nt':
             try:
@@ -142,9 +93,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.construir_ui()
         self.detectar_banco_por_drive() # Tenta localizar o banco e carregar playlists no início
         self.validar_campos() # Validação inicial
-        
-        # Dispara o espião do GitHub em segundo plano ao abrir o app
-        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
     def _check_for_updates_thread(self):
         versao_github = check_for_updates(VERSAO_ATUAL)
@@ -164,77 +112,73 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             pass
             
         if not img_carregada: # Fallback se a imagem não carregar
-            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("engine_sync_title", "ENGINE DJ SYNC"), font=ctk.CTkFont(size=24, weight="bold"), text_color="#00E5A3")
+            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("engine_sync_title", "ENGINE DJ SYNC"), font=ctk.CTkFont(family=FONT_FAMILY, size=24, weight="bold"), text_color="#00E5A3")
             
         lbl_titulo.pack(pady=(25, 5))
 
-        frame_config = ctk.CTkFrame(self)
+        # Frame principal para as configurações
+        frame_config = ctk.CTkFrame(self, fg_color="transparent")
         frame_config.pack(padx=30, pady=(10, 8), fill="x")
 
-        lbl_pasta = ctk.CTkLabel(frame_config, text=self.txt["music_folder"], font=ctk.CTkFont(weight="bold"))
-        lbl_pasta.grid(row=0, column=0, padx=(25, 15), pady=(10, 2), sticky="w")
+        # Pasta de Músicas
+        lbl_pasta = ctk.CTkLabel(frame_config, text=self.txt["music_folder"], font=ctk.CTkFont(family="Consolas", weight="bold"))
+        lbl_pasta.pack(padx=(25, 0), pady=(10, 2), anchor="w")
         
-        entry_pasta = ctk.CTkEntry(frame_config, textvariable=self.path_musicas, width=450)
-        entry_pasta.grid(row=1, column=0, padx=(25, 15), pady=(0, 8), sticky="w")
+        frame_pasta_browse = ctk.CTkFrame(frame_config, fg_color="transparent")
+        frame_pasta_browse.pack(padx=25, pady=(0, 8), fill="x")
+
+        entry_pasta = ctk.CTkEntry(frame_pasta_browse, textvariable=self.path_musicas, width=400, corner_radius=0)
+        entry_pasta.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
-        btn_pasta = ctk.CTkButton(frame_config, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(weight="bold"), command=self.procurar_pasta)
-        btn_pasta.grid(row=1, column=1, padx=(0, 20), pady=(0, 8), sticky="w")
+        btn_pasta = ctk.CTkButton(frame_pasta_browse, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(family="Consolas", weight="bold"), corner_radius=0, command=self.procurar_pasta)
+        btn_pasta.pack(side="right", padx=(0, 0))
 
         # Label Informativo de Banco de Dados Detectado (Substitui a seleção manual)
-        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#AAAAAA")
-        self.lbl_db_auto.grid(row=2, column=0, columnspan=2, padx=(25, 15), pady=(2, 10), sticky="w")
+        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(family="Consolas", size=12, weight="bold"), text_color="#AAAAAA")
+        self.lbl_db_auto.pack(padx=(25, 0), pady=(2, 10), anchor="w")
 
-        lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(weight="bold"))
-        lbl_playlist.grid(row=3, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
+        # Seleção de Playlist
+        lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(family="Consolas", weight="bold"))
+        lbl_playlist.pack(padx=(25, 0), pady=(0, 2), anchor="w")
 
-        self.combo_playlist = ctk.CTkComboBox(frame_config, width=450, command=self.on_playlist_changed)
-        self.combo_playlist.grid(row=4, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
+        self.combo_playlist = ctk.CTkComboBox(frame_config, width=400, command=self.on_playlist_changed, corner_radius=0)
+        self.combo_playlist.pack(padx=(25, 0), pady=(0, 10), anchor="w")
 
-        self.check_backup = ctk.CTkCheckBox(frame_config, text=self.txt["backup"], variable=self.fazer_backup, font=ctk.CTkFont(weight="bold"), fg_color="#00E5A3", hover_color="#00b37e", command=self.salvar_config_ui)
-        self.check_backup.grid(row=5, column=0, padx=(25, 15), pady=(0, 4), sticky="w")
+        # Switches de Configuração
+        self.check_backup = ctk.CTkSwitch(frame_config, text=self.txt["backup"], variable=self.fazer_backup, font=ctk.CTkFont(family="Consolas", weight="bold"), fg_color="#555555", progress_color="#00E5A3", command=self.salvar_config_ui)
+        self.check_backup.pack(padx=(25, 0), pady=(0, 4), anchor="w")
 
         estado_hotcue = "normal" if _HOTCUE_DISPONIVEL else "disabled"
-        self.check_hotcue = ctk.CTkCheckBox(frame_config, text=self.txt["hotcue"], variable=self.importar_hotcue, font=ctk.CTkFont(weight="bold"), fg_color="#00E5A3", hover_color="#00b37e", state=estado_hotcue, command=self._toggle_hotcue)
-        self.check_hotcue.grid(row=6, column=0, padx=(25, 15), pady=(0, 2), sticky="w")
+        self.check_hotcue = ctk.CTkSwitch(frame_config, text=self.txt["hotcue"], variable=self.importar_hotcue, font=ctk.CTkFont(family="Consolas", weight="bold"), fg_color="#555555", progress_color="#00E5A3", state=estado_hotcue, command=self._toggle_hotcue)
+        self.check_hotcue.pack(padx=(25, 0), pady=(0, 2), anchor="w")
 
         estado_overwrite = "normal" if (_HOTCUE_DISPONIVEL and self.importar_hotcue.get()) else "disabled"
-        self.check_hotcue_overwrite = ctk.CTkCheckBox(
-            frame_config,
-            text=self.txt["hotcue_overwrite"],
-            variable=self.sobrescrever_hotcue,
-            font=ctk.CTkFont(size=12),
-            fg_color="#00E5A3",
-            hover_color="#00b37e",
-            state=estado_overwrite,
-            command=self.salvar_config_ui
-        )
-        self.check_hotcue_overwrite.grid(row=7, column=0, padx=(40, 15), pady=(0, 8), sticky="w")
+        self.check_hotcue_overwrite = ctk.CTkSwitch(
+            frame_config, text=self.txt["hotcue_overwrite"], variable=self.sobrescrever_hotcue,
+            font=ctk.CTkFont(family="Consolas", size=12), fg_color="#555555", progress_color="#00E5A3",
+            state=estado_overwrite, command=self.salvar_config_ui)
+        self.check_hotcue_overwrite.pack(padx=(40, 0), pady=(0, 8), anchor="w")
         
-        self.check_orfas = ctk.CTkCheckBox(
-            frame_config, 
-            text=self.txt["remover_orfas"], 
-            variable=self.remover_orfas, 
-            font=ctk.CTkFont(weight="bold"), 
-            fg_color="#00E5A3", 
-            hover_color="#00b37e", 
-            command=self.salvar_config_ui
-        )
-        self.check_orfas.grid(row=8, column=0, padx=(25, 15), pady=(0, 10), sticky="w")
+        self.check_orfas = ctk.CTkSwitch(
+            frame_config, text=self.txt["remover_orfas"], variable=self.remover_orfas,
+            font=ctk.CTkFont(family="Consolas", weight="bold"), fg_color="#555555", progress_color="#00E5A3",
+            command=self.salvar_config_ui)
+        self.check_orfas.pack(padx=(25, 0), pady=(0, 10), anchor="w")
 
-        self.lbl_status = ctk.CTkLabel(self, textvariable=self.status_var, font=ctk.CTkFont(size=14))
+        self.lbl_status = ctk.CTkLabel(self, textvariable=self.status_var, font=ctk.CTkFont(family="Consolas", size=14))
         self.lbl_status.pack(pady=(8, 3), fill="x", padx=30)
 
-        self.progress_bar = ctk.CTkProgressBar(self, width=620, height=12, progress_color="#00E5A3")
+        self.progress_bar = ctk.CTkProgressBar(self, width=620, height=12, progress_color="#00E5A3", corner_radius=0)
         self.progress_bar.pack(pady=4)
         self.progress_bar.set(0)
 
-        self.btn_sync = ctk.CTkButton(self, text=self.txt["sync_btn"], font=ctk.CTkFont(size=16, weight="bold"), 
-                                      height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", 
+        self.btn_sync = ctk.CTkButton(self, text=self.txt["sync_btn"], font=ctk.CTkFont(family="Consolas", size=16, weight="bold"), 
+                                      height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=0,
                                       state="disabled", command=self.iniciar_sincronizacao)
         self.btn_sync.pack(pady=(10, 6), fill="x", padx=60)
 
-        self.btn_cancel = ctk.CTkButton(self, text=self.txt.get("cancel_btn", "Cancelar"), font=ctk.CTkFont(size=14, weight="bold"), 
-                                        height=35, fg_color="#CC3333", text_color="#FFFFFF", hover_color="#AA2222", 
+        self.btn_cancel = ctk.CTkButton(self, text=self.txt.get("cancel_btn", "Cancelar"), font=ctk.CTkFont(family="Consolas", size=14, weight="bold"), 
+                                        height=35, fg_color="#CC3333", text_color="#FFFFFF", hover_color="#AA2222", corner_radius=0,
                                         state="disabled", command=self.cancelar_sincronizacao)
         self.btn_cancel.pack(pady=(0, 6), fill="x", padx=60)
 
@@ -243,7 +187,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         #                                 hover=False, cursor="hand2", command=self.abrir_link_doacao)
         # self.btn_doacao.pack(pady=(4, 6))
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def detectar_banco_por_drive(self):
@@ -288,12 +232,12 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             drive_alvo = os.path.splitdrive(banco_alvo)[0].upper()
             
             texto_drives = " | ".join([f"[{d}]" if d == drive_alvo else d for d in drives_encontrados])
-            self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
+            self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color=COLOR_TEXT_NORMAL)
         else: # Nenhum banco válido encontrado
             self.path_db.set("") # Limpa o caminho do banco
             self.salvar_config_ui() # Salva a configuração (com path_db vazio)
 
-            drives_encontrados = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
+            drives_encontrados = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases})) # type: ignore
             if drive_musica:
                 self.lbl_db_auto.configure(
                     text=self.txt.get("error_no_db_on_drive", "Erro: Banco de Dados não encontrado no disco {drive}").format(drive=drive_musica),
@@ -583,14 +527,15 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             except:
                 pass
 
-        lbl_header = ctk.CTkLabel(viewer, text=f"RELATÓRIO DE SINCRONIZAÇÃO\nPlaylist: {nome_limpo}", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_header = ctk.CTkLabel(viewer, text=f"RELATÓRIO DE SINCRONIZAÇÃO\nPlaylist: {nome_limpo}", font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"))
         lbl_header.pack(pady=10)
 
-        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family="Consolas", size=11))
+        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
         textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
         textbox.insert("end", content)
         textbox.configure(state="disabled")
 
-        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        viewer.configure(fg_color=COLOR_BG_DARK)
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))

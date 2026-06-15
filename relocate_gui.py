@@ -12,7 +12,10 @@ from database_utils import (
     update_track_path, get_track_id_by_path, update_playlist_entry_track
 )
 from engine_sync_app import get_resource_path, SyncManager
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
+from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME, 
+                       FONT_FAMILY, COLOR_BG_DARK, 
+                       COLOR_TEXT_NORMAL, COLOR_TEXT_MUTED, 
+                       COLOR_SWITCH_OFF, CORNER_RADIUS_NONE)
 
 class RelocateLostTracksWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -23,7 +26,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.title(f"{self.txt['relocate_title']} ({VERSAO_ATUAL})")
         self.geometry("650x750") # Altura reduzida para um layout mais compacto e funcional
         self.resizable(False, False)
-        self.configure(fg_color="#1a1a1a")
+        self.configure(fg_color=COLOR_BG_DARK)
 
         # Configuração de Ícone (Padrão multi-plataforma)
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
@@ -52,12 +55,24 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.search_folder = ctk.StringVar()
         self.relocate_mode = ctk.StringVar(value="relocate")
         self.fuzzy_action = ctk.StringVar(value="") # Nenhuma ação fuzzy selecionada por padrão
+
+        # BooleanVars para o estado visual dos CTkSwitch (simulando radio buttons)
+        self.r_copy_state = ctk.BooleanVar(value=(self.relocate_mode.get() == "copy"))
+        self.r_update_state = ctk.BooleanVar(value=(self.relocate_mode.get() == "relocate"))
+        self.r_fuzzy_state = ctk.BooleanVar(value=(self.relocate_mode.get() == "fuzzy"))
+
+        self.r_f_rename_state = ctk.BooleanVar(value=(self.fuzzy_action.get() == "rename"))
+        self.r_f_copy_state = ctk.BooleanVar(value=(self.fuzzy_action.get() == "copy"))
+        self.r_f_move_state = ctk.BooleanVar(value=(self.fuzzy_action.get() == "move"))
+
         self.just_verify = ctk.BooleanVar(value=False)
         self.found_databases = localizar_bancos_dados_engine()
 
         self.construir_ui()
         self.selected_playlist.trace_add("write", lambda *args: self.atualizar_label_drives())
-        self.relocate_mode.trace_add("write", self._handle_relocate_mode_change) # Adiciona o trace para controlar as sub-opções
+        self.relocate_mode.trace_add("write", self._handle_relocate_mode_change) # Controla as sub-opções e atualiza visuais
+        self.relocate_mode.trace_add("write", self._update_relocate_mode_visuals) # Atualiza o estado visual dos switches
+        self.fuzzy_action.trace_add("write", self._update_fuzzy_action_visuals) # Atualiza o estado visual dos switches
         self.carregar_playlists()
 
     def construir_ui(self):
@@ -74,79 +89,79 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             pass
 
         if not img_carregada:
-            lbl_title = ctk.CTkLabel(self, text=self.txt["relocate_title"].upper(), font=ctk.CTkFont(size=22, weight="bold"), text_color="#F39C12")
+            lbl_title = ctk.CTkLabel(self, text=self.txt["relocate_title"].upper(), font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"), text_color="#F39C12")
             lbl_title.pack(pady=(20, 10))
 
         # Label Informativo unificado seguindo o padrão do Mirror Sync
-        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#AAAAAA")
+        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_TEXT_MUTED)
         self.lbl_db_auto.pack(pady=(0, 5), padx=40)
 
         # Seleção de Playlist
         frame_pl = ctk.CTkFrame(self, fg_color="transparent")
         frame_pl.pack(padx=40, pady=5, fill="x")
         
-        ctk.CTkLabel(frame_pl, text=self.txt["playlist"], font=ctk.CTkFont(weight="bold")).pack(anchor="w")
-        self.combo_playlist = ctk.CTkComboBox(frame_pl, variable=self.selected_playlist, values=[], width=450, state="disabled")
+        ctk.CTkLabel(frame_pl, text=self.txt["playlist"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
+        self.combo_playlist = ctk.CTkComboBox(frame_pl, variable=self.selected_playlist, values=[], width=450, state="disabled", corner_radius=CORNER_RADIUS_NONE)
         self.combo_playlist.pack(pady=2, fill="x")
 
         # Pasta de Busca
         frame_search = ctk.CTkFrame(self, fg_color="transparent")
         frame_search.pack(padx=40, pady=5, fill="x")
         
-        ctk.CTkLabel(frame_search, text=self.txt["search_folder_label"], font=ctk.CTkFont(weight="bold")).pack(anchor="w")
-        entry_search = ctk.CTkEntry(frame_search, textvariable=self.search_folder, width=350)
+        ctk.CTkLabel(frame_search, text=self.txt["search_folder_label"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
+        entry_search = ctk.CTkEntry(frame_search, textvariable=self.search_folder, width=350, corner_radius=CORNER_RADIUS_NONE)
         entry_search.pack(side="left", pady=2, fill="x", expand=True, padx=(0, 10))
         
-        btn_browse = ctk.CTkButton(frame_search, text=self.txt["browse"], width=100, fg_color="#F39C12", text_color="#000000", hover_color="#D68910", command=self.procurar_pasta_busca)
+        btn_browse = ctk.CTkButton(frame_search, text=self.txt["browse"], width=100, fg_color="#F39C12", text_color="#000000", hover_color="#D68910", corner_radius=CORNER_RADIUS_NONE, command=self.procurar_pasta_busca)
         btn_browse.pack(side="right", pady=2)
 
         # Opções de Modo (Alertar, Copiar, Relocar)
         frame_mode = ctk.CTkFrame(self, fg_color="transparent")
         frame_mode.pack(padx=40, pady=5, fill="x")
         
-        ctk.CTkLabel(frame_mode, text=self.txt["relocate_mode_label"], font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(frame_mode, text=self.txt["relocate_mode_label"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
         
-        self.r_copy = ctk.CTkRadioButton(frame_mode, text=self.txt["relocate_mode_copy"], variable=self.relocate_mode, value="copy", font=ctk.CTkFont(size=12), fg_color="#F39C12", hover_color="#D68910")
+        self.r_copy = ctk.CTkSwitch(frame_mode, text=self.txt["relocate_mode_copy"], variable=self.r_copy_state, command=lambda: self._on_relocate_mode_selected("copy"), font=ctk.CTkFont(family=FONT_FAMILY, size=12), fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12")
         self.r_copy.pack(anchor="w", pady=2)
         
-        self.r_update = ctk.CTkRadioButton(frame_mode, text=self.txt["relocate_mode_update"], variable=self.relocate_mode, value="relocate", font=ctk.CTkFont(size=12), fg_color="#F39C12", hover_color="#D68910")
+        self.r_update = ctk.CTkSwitch(frame_mode, text=self.txt["relocate_mode_update"], variable=self.r_update_state, command=lambda: self._on_relocate_mode_selected("relocate"), font=ctk.CTkFont(family=FONT_FAMILY, size=12), fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12")
         self.r_update.pack(anchor="w", pady=2)
 
-        self.r_fuzzy = ctk.CTkRadioButton(frame_mode, text=self.txt.get("fuzzy_search_label", "Busca inteligente (Arquivos renomeados)"), variable=self.relocate_mode, value="fuzzy", font=ctk.CTkFont(size=12), fg_color="#F39C12", hover_color="#D68910")
+        self.r_fuzzy = ctk.CTkSwitch(frame_mode, text=self.txt.get("fuzzy_search_label", "Busca inteligente (Arquivos renomeados)"), variable=self.r_fuzzy_state, command=lambda: self._on_relocate_mode_selected("fuzzy"), font=ctk.CTkFont(family=FONT_FAMILY, size=12), fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12")
         self.r_fuzzy.pack(anchor="w", pady=2)
 
         # Sub-opções da Busca Inteligente
         self.frame_fuzzy_ops = ctk.CTkFrame(frame_mode, fg_color="transparent")
         self.frame_fuzzy_ops.pack(anchor="w", fill="x")
         
-        self.r_f_rename = ctk.CTkRadioButton(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_rename", "Renomear arquivo (Se na mesma pasta)"), 
-                                           variable=self.fuzzy_action, value="rename", font=ctk.CTkFont(size=10))
+        self.r_f_rename = ctk.CTkSwitch(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_rename", "Renomear arquivo (Se na mesma pasta)"), 
+                                           variable=self.r_f_rename_state, command=lambda: self._on_fuzzy_action_selected("rename"), font=ctk.CTkFont(family=FONT_FAMILY, size=11), fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12")
         self.r_f_rename.pack(anchor="w", padx=35, pady=1)
 
-        self.r_f_copy = ctk.CTkRadioButton(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_copy", "Copiar arquivo para o local antigo"), 
-                                         variable=self.fuzzy_action, value="copy", font=ctk.CTkFont(size=10))
+        self.r_f_copy = ctk.CTkSwitch(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_copy", "Copiar arquivo para o local antigo"), 
+                                         variable=self.r_f_copy_state, command=lambda: self._on_fuzzy_action_selected("copy"), font=ctk.CTkFont(family=FONT_FAMILY, size=11), fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12")
         self.r_f_copy.pack(anchor="w", padx=35, pady=1)
 
-        self.r_f_move = ctk.CTkRadioButton(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_move", "Mover arquivo para o local antigo"), 
-                                         variable=self.fuzzy_action, value="move", font=ctk.CTkFont(size=10))
+        self.r_f_move = ctk.CTkSwitch(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_move", "Mover arquivo para o local antigo"), 
+                                         variable=self.r_f_move_state, command=lambda: self._on_fuzzy_action_selected("move"), font=ctk.CTkFont(family=FONT_FAMILY, size=11), fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12")
         self.r_f_move.pack(anchor="w", padx=35, pady=1)
 
-        # Checkbox: Apenas Verificar
-        self.check_verify = ctk.CTkCheckBox(
+        # Switch: Apenas Verificar
+        self.check_verify = ctk.CTkSwitch(
             frame_mode, 
             text=self.txt.get("relocate_just_verify_label", "Apenas Verificar (Sem alteração)"),
             variable=self.just_verify,
-            font=ctk.CTkFont(size=12),
-            fg_color="#F39C12", hover_color="#D68910"
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=COLOR_SWITCH_OFF, progress_color="#F39C12"
         )
-        self.check_verify.pack(anchor="w", pady=(5, 5))
+        self.check_verify.pack(anchor="w", pady=(5, 5)) # Este já era um CTkSwitch, sem alteração aqui.
 
         # Botão: Listar Músicas Faltantes
         self.btn_view_missing = ctk.CTkButton(
             self,
             text=self.txt["view_tracks_btn"],
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color="#555555", text_color="#FFFFFF", hover_color="#777777",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), corner_radius=CORNER_RADIUS_NONE,
+            fg_color=COLOR_SWITCH_OFF, text_color=COLOR_TEXT_NORMAL, hover_color="#777777",
             height=40, width=350,
             command=self.listar_musicas_faltantes
         )
@@ -156,7 +171,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.btn_action = ctk.CTkButton(
             self,
             text=self.txt["relocate_btn_action"],
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), corner_radius=CORNER_RADIUS_NONE,
             fg_color="#F39C12", text_color="#000000", hover_color="#D68910",
             height=40, width=350,
             command=self.iniciar_relocacao
@@ -164,15 +179,29 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.btn_action.pack(pady=15)
 
         # Progresso e Status
-        self.progress_bar = ctk.CTkProgressBar(self, width=500, progress_color="#F39C12")
+        self.progress_bar = ctk.CTkProgressBar(self, width=500, progress_color="#F39C12", corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(pady=5)
         self.progress_bar.set(0)
 
-        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA")
+        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color=COLOR_TEXT_MUTED)
         self.lbl_status.pack(pady=(5, 0))
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(pady=(2, 10)) # Removido side="bottom" para manter o rodapé próximo ao status
+
+        # Inicializa o estado visual dos switches
+        self._update_relocate_mode_visuals()
+        self._update_fuzzy_action_visuals()
+
+    def _on_relocate_mode_selected(self, selected_mode):
+        # Este método é chamado quando um switch do grupo relocate_mode é ativado.
+        # Ele define o valor da StringVar principal, que por sua vez aciona o trace para atualizar os visuais.
+        self.relocate_mode.set(selected_mode)
+
+    def _on_fuzzy_action_selected(self, selected_action):
+        # Este método é chamado quando um switch do grupo fuzzy_action é ativado.
+        # Ele define o valor da StringVar principal, que por sua vez aciona o trace para atualizar os visuais.
+        self.fuzzy_action.set(selected_action)
 
     def _handle_relocate_mode_change(self, *args):
         """Define a ação padrão da busca inteligente quando o modo é selecionado/desselecionado."""
@@ -180,6 +209,18 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             self.fuzzy_action.set("rename") # Seleciona "Renomear" por padrão quando "Busca Inteligente" é escolhido
         else:
             self.fuzzy_action.set("") # Limpa a seleção das sub-opções quando outro modo é escolhido
+
+    def _update_relocate_mode_visuals(self, *args):
+        current_mode = self.relocate_mode.get()
+        self.r_copy_state.set(current_mode == "copy")
+        self.r_update_state.set(current_mode == "relocate")
+        self.r_fuzzy_state.set(current_mode == "fuzzy")
+
+    def _update_fuzzy_action_visuals(self, *args):
+        current_action = self.fuzzy_action.get()
+        self.r_f_rename_state.set(current_action == "rename")
+        self.r_f_copy_state.set(current_action == "copy")
+        self.r_f_move_state.set(current_action == "move")
 
     def procurar_pasta_busca(self):
         pasta = filedialog.askdirectory()
@@ -250,10 +291,10 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         viewer.transient(self)
         viewer.grab_set()
 
-        lbl_header = ctk.CTkLabel(viewer, text=f"Músicas Faltantes em: {pl_nome}", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_header = ctk.CTkLabel(viewer, text=f"Músicas Faltantes em: {pl_nome}", font=ctk.CTkFont(family="Consolas", size=16, weight="bold"))
         lbl_header.pack(pady=10)
 
-        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
         textbox = ctk.CTkTextbox(viewer, width=760, height=500, font=ctk.CTkFont(family="Consolas", size=11))
@@ -591,10 +632,10 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         viewer.transient(self)
         viewer.grab_set()
 
-        lbl_header = ctk.CTkLabel(viewer, text=f"{title_prefix}\nPlaylist: {playlist_name}", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_header = ctk.CTkLabel(viewer, text=f"{title_prefix}\nPlaylist: {playlist_name}", font=ctk.CTkFont(family="Consolas", size=16, weight="bold"))
         lbl_header.pack(pady=10)
 
-        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
         textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family="Consolas", size=11))

@@ -12,7 +12,10 @@ from PIL import Image, ImageTk
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
-from constants import STRINGS, get_system_lang, VERSAO_ATUAL, APP_NAME
+from constants import (STRINGS, get_system_lang, VERSAO_ATUAL, APP_NAME,
+                       FONT_FAMILY, COLOR_BG_DARK, COLOR_TEXT_NORMAL,
+                       COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
+                       CORNER_RADIUS_NONE)
 
 class CSVToVDJConverter(ctk.CTk):
     def __init__(self):
@@ -21,6 +24,7 @@ class CSVToVDJConverter(ctk.CTk):
         self.title(f"{self.txt.get('csv_converter_title', 'Engine DJ CSV to Virtual DJ XML Converter')} ({VERSAO_ATUAL})")
         self.geometry("600x400")
         self.resizable(False, False)
+        self.configure(fg_color=COLOR_BG_DARK) # Cor de fundo unificada
         ctk.set_appearance_mode("Dark")
 
         # Configuração de Ícone
@@ -47,35 +51,35 @@ class CSVToVDJConverter(ctk.CTk):
 
     def setup_ui(self):
         # Título
-        lbl_title = ctk.CTkLabel(self, text="Conversor de Playlist", font=ctk.CTkFont(size=20, weight="bold"), text_color="#00E5A3")
+        lbl_title = ctk.CTkLabel(self, text="Conversor de Playlist", font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"), text_color="#00E5A3")
         lbl_title.pack(pady=(20, 10))
 
         # Frame Seleção
-        frame = ctk.CTkFrame(self)
+        frame = ctk.CTkFrame(self, fg_color="transparent")
         frame.pack(padx=20, pady=10, fill="x")
 
         # Selecionar CSV
-        lbl_csv = ctk.CTkLabel(frame, text="Arquivo CSV do Engine DJ:", font=ctk.CTkFont(weight="bold"))
+        lbl_csv = ctk.CTkLabel(frame, text="Arquivo CSV do Engine DJ:", font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_csv.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
         
-        entry_csv = ctk.CTkEntry(frame, textvariable=self.csv_path, width=400)
+        entry_csv = ctk.CTkEntry(frame, textvariable=self.csv_path, width=400, corner_radius=CORNER_RADIUS_NONE)
         entry_csv.grid(row=1, column=0, padx=10, pady=5)
         
-        btn_csv = ctk.CTkButton(frame, text="Procurar", width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", command=self.select_csv)
+        btn_csv = ctk.CTkButton(frame, text="Procurar", width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE, command=self.select_csv)
         btn_csv.grid(row=1, column=1, padx=10, pady=5)
 
         # Log de status
-        self.txt_log = ctk.CTkTextbox(self, height=150, width=560)
+        self.txt_log = ctk.CTkTextbox(self, height=150, width=560, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
         self.txt_log.pack(pady=10, padx=20)
         self.log("Pronto para converter.")
 
         # Botão Converter
-        self.btn_convert = ctk.CTkButton(self, text="Transformar em XML", font=ctk.CTkFont(size=16, weight="bold"), 
-                                         height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", 
+        self.btn_convert = ctk.CTkButton(self, text="Transformar em XML", font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), 
+                                         height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE,
                                          command=self.process_conversion)
         self.btn_convert.pack(pady=20)
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def log(self, message):

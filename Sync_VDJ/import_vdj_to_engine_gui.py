@@ -12,7 +12,10 @@ from collections import defaultdict
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from database_utils import localizar_bancos_dados_engine, get_database_uuid
 from engine_sync_app import SyncManager, get_resource_path
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
+from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME,
+                       FONT_FAMILY, COLOR_BG_DARK, COLOR_TEXT_NORMAL,
+                       COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
+                       CORNER_RADIUS_NONE)
 
 try:
     # Tenta importar o VDJManager para localizar as pastas MyLists
@@ -26,7 +29,7 @@ class PlaylistContentWindow(ctk.CTkToplevel):
         self.txt = master.txt
         self.title(f"{self.txt.get('content_title', 'Conteúdo:').format(title=title)} ({VERSAO_ATUAL})") # type: ignore
         self.geometry("850x600")
-        self.configure(fg_color="#1a1a1a")
+        self.configure(fg_color=COLOR_BG_DARK)
 
         self.transient(master)
         self.grab_set()
@@ -47,10 +50,10 @@ class PlaylistContentWindow(ctk.CTkToplevel):
                     pass
             self.after(200, aplicar_icone)
 
-        lbl = ctk.CTkLabel(self, text=self.txt.get("music_list_header", "Lista de Músicas: {title}").format(title=title), font=ctk.CTkFont(size=14, weight="bold"), text_color="#00E5A3")
+        lbl = ctk.CTkLabel(self, text=self.txt.get("music_list_header", "Lista de Músicas: {title}").format(title=title), font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), text_color="#00E5A3")
         lbl.pack(pady=10)
         
-        self.textbox = ctk.CTkTextbox(self, font=ctk.CTkFont(family="Consolas", size=11))
+        self.textbox = ctk.CTkTextbox(self, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
         self.textbox.pack(padx=20, pady=10, fill="both", expand=True)
 
         try:
@@ -86,10 +89,10 @@ class PlaylistContentWindow(ctk.CTkToplevel):
 
         self.textbox.configure(state="disabled")
 
-        btn_close = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), command=self.destroy)
+        btn_close = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), corner_radius=CORNER_RADIUS_NONE, command=self.destroy)
         btn_close.pack(pady=10)
-
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
 class ImportVDJToEngineWindow(ctk.CTkToplevel):
@@ -102,7 +105,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
         self.geometry("600x520")
         self.resizable(False, False)
-        self.configure(fg_color="#242424")
+        self.configure(fg_color=COLOR_BG_DARK)
 
         self.transient(master)
         self.grab_set()
@@ -143,28 +146,28 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         except: pass
 
         lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_import_btn", "Importar Playlist do VDJ para o Engine"), 
-                                font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E5A3")
+                                font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color="#00E5A3")
         lbl_title.pack(pady=(5, 10))
 
         # Seletor de Playlist do VirtualDJ
         vdj_frame = ctk.CTkFrame(self, fg_color="transparent")
         vdj_frame.pack(padx=20, pady=10, fill="x")
-        ctk.CTkLabel(vdj_frame, text=self.txt.get("select_vdj_playlist_label", "Selecionar Playlist do VirtualDJ (.vdjfolder):"), font=ctk.CTkFont(weight="bold")).pack(anchor="w")
+        ctk.CTkLabel(vdj_frame, text=self.txt.get("select_vdj_playlist_label", "Selecionar Playlist do VirtualDJ (.vdjfolder):"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
         
         # Frame auxiliar para o combo e o botão de visualização
         vdj_selector_frame = ctk.CTkFrame(vdj_frame, fg_color="transparent")
         vdj_selector_frame.pack(fill="x", pady=(5, 0))
 
         self.vdj_options = self.scan_vdj_playlists() # type: ignore
-        self.combo_vdj = ctk.CTkComboBox(vdj_selector_frame, variable=self.selected_vdj_playlist, values=self.vdj_options, width=420)
+        self.combo_vdj = ctk.CTkComboBox(vdj_selector_frame, variable=self.selected_vdj_playlist, values=self.vdj_options, width=420, corner_radius=CORNER_RADIUS_NONE)
         self.combo_vdj.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         btn_view = ctk.CTkButton(
             vdj_selector_frame, 
             text=self.txt.get("view_tracks_btn", "Ver Músicas"), 
             width=100, 
-            fg_color="#555555", 
-            text_color="#FFFFFF", # type: ignore
+            fg_color=COLOR_SWITCH_OFF, corner_radius=CORNER_RADIUS_NONE,
+            text_color=COLOR_TEXT_NORMAL, # type: ignore
             hover_color="#777777",
             command=self.show_playlist_contents
         )
@@ -184,25 +187,25 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         # Label Informativo unificado (Padrão Mirror Sync)
         drives_totais = sorted(list({get_vol_id(d) for d in self.found_databases}))
         texto_drives = " | ".join(drives_totais)
-        self.lbl_db_auto = ctk.CTkLabel(self, font=ctk.CTkFont(size=12, weight="bold"))
+        self.lbl_db_auto = ctk.CTkLabel(self, font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"))
         self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
         self.lbl_db_auto.pack(pady=(5, 0))
 
         # Status e Progresso
-        self.lbl_status = ctk.CTkLabel(self, text=self.txt.get("select_playlist_to_start", "Selecione a playlist para começar"), font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
+        self.lbl_status = ctk.CTkLabel(self, text=self.txt.get("select_playlist_to_start", "Selecione a playlist para começar"), font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color=COLOR_TEXT_MUTED, wraplength=450)
         self.lbl_status.pack(pady=(20, 5))
         
-        self.progress_bar = ctk.CTkProgressBar(self, width=500, height=10, progress_color="#00E5A3")
+        self.progress_bar = ctk.CTkProgressBar(self, width=500, height=10, progress_color="#00E5A3", corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(pady=5)
         self.progress_bar.set(0)
 
-        # Botão de Execução
-        self.btn_run = ctk.CTkButton(self, text=self.txt.get("start_import_vdj_btn", "Iniciar Importação para o Engine DJ"), font=ctk.CTkFont(size=14, weight="bold"),
-                                     fg_color="#D84343", text_color="#FFFFFF", hover_color="#CE2323", height=45, width=350, 
-                                     command=self.run_import)
+        self.btn_run = ctk.CTkButton(self, text=self.txt.get("start_import_vdj_btn", "Iniciar Importação para o Engine DJ"), 
+                                     font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+                                     fg_color="#D84343", text_color=COLOR_TEXT_NORMAL, hover_color="#CE2323", height=45, width=350, 
+                                     corner_radius=CORNER_RADIUS_NONE, command=self.run_import)
         self.btn_run.pack(pady=20)
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def scan_vdj_playlists(self):

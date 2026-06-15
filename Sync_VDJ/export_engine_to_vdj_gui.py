@@ -13,7 +13,10 @@ import xml.dom.minidom as minidom
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) #
 from database_utils import get_tracks_by_playlist_id, localizar_bancos_dados_engine, get_database_uuid, get_all_playlists_hierarchical #
 from engine_sync_app import SyncManager, get_resource_path, IS_WIN, IS_MAC
-from constants import VERSAO_ATUAL, APP_NAME
+from constants import (VERSAO_ATUAL, APP_NAME, FONT_FAMILY,
+                       COLOR_BG_DARK, COLOR_TEXT_NORMAL,
+                       COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
+                       CORNER_RADIUS_NONE)
 from Sync_VDJ.vdj_logic import VDJManager
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
@@ -25,7 +28,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.title(f"{self.txt.get('vdj_export_btn', 'Exportar Playlist do Engine para o VDJ')} ({VERSAO_ATUAL})")
         self.geometry("600x600") 
         self.resizable(False, False)
-        self.configure(fg_color="#242424")
+        self.configure(fg_color=COLOR_BG_DARK)
 
         self.manager = SyncManager()
         self.vdj_manager = VDJManager()
@@ -81,21 +84,21 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             pass
             
         if not img_carregada:
-            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=18, weight="bold"), text_color="#00E5A3")
+            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(20, 10))
         else:
             # Se o logo for carregado, o título pode ter um padding menor ou fonte ligeiramente menor
-            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(size=16, weight="bold"), text_color="#00E5A3")
+            lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(5, 10))
 
-        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=11, weight="bold"), text_color="#00E5A3")
+        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color="#00E5A3")
         self.lbl_db_auto.pack(pady=(10, 5))
 
         # Frame para seleção da playlist
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")
         playlist_frame.pack(padx=20, pady=10, fill="x")
 
-        lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("select_playlist_full_path", "Selecionar Playlist (Caminho Completo):"), font=ctk.CTkFont(weight="bold"))
+        lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("select_playlist_full_path", "Selecionar Playlist (Caminho Completo):"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_playlist.pack(anchor="w")
 
         # Seletor de playlist usando ComboBox padrão (estável e com rolagem nativa)
@@ -104,6 +107,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             variable=self.selected_playlist,
             values=[],
             width=540,
+            corner_radius=CORNER_RADIUS_NONE,
             state="disabled"
         )
         self.combo_playlist.pack(fill="x", expand=True, pady=(5, 0))
@@ -112,7 +116,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         target_frame = ctk.CTkFrame(self, fg_color="transparent")
         target_frame.pack(padx=20, pady=10, fill="x")
 
-        lbl_target = ctk.CTkLabel(target_frame, text=self.txt.get("vdj_target_label", "Destino no Virtual DJ:"), font=ctk.CTkFont(weight="bold"))
+        lbl_target = ctk.CTkLabel(target_frame, text=self.txt.get("vdj_target_label", "Destino no Virtual DJ:"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_target.pack(anchor="w")
 
         # Obtém as pastas MyLists/My List automaticamente
@@ -123,7 +127,8 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             target_frame,
             variable=self.target_vdj_path,
             values=vdj_destinos_display,
-            width=450
+            width=450,
+            corner_radius=CORNER_RADIUS_NONE
         )
         self.combo_target.pack(fill="x", expand=True)
         if vdj_destinos:
@@ -136,7 +141,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         btn_import = ctk.CTkButton(
             self,
             text=self.txt.get("vdj_export_btn", "Importar Playlist Selecionada"),
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), corner_radius=CORNER_RADIUS_NONE,
             fg_color="#00E5A3",
             text_color="#000000",
             hover_color="#00b37e",
@@ -150,11 +155,11 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         btn_export_info = ctk.CTkButton(
             self,
             text=self.txt.get("export_engine_info_btn", "Exportar Info da Playlist (Engine)"),
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             fg_color="#555555",
-            text_color="#FFFFFF",
+            text_color=COLOR_TEXT_NORMAL,
             hover_color="#777777",
-            height=40,
+            height=40, corner_radius=CORNER_RADIUS_NONE,
             width=350,
             command=self.export_engine_playlist_info
         )
@@ -162,10 +167,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
 
 
         # Status/Log
-        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
+        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color=COLOR_TEXT_MUTED, wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def load_playlists_from_db(self, db_path):

@@ -12,7 +12,10 @@ import threading
 from database_utils import localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id
 from engine_sync_app import get_resource_path, SyncManager
 from le_json import read_mp3
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
+from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME,
+                       FONT_FAMILY, COLOR_BG_DARK,
+                       COLOR_TEXT_NORMAL, COLOR_TEXT_MUTED,
+                       COLOR_SWITCH_OFF, CORNER_RADIUS_NONE)
 from hotcue_normalizer import normalize_hotcues
 from engine_hotcues import format_time, parse_quick_cues, CueWrite, encode_quick_cues
 
@@ -25,7 +28,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.title(f"{self.txt.get('mik_sync_title', 'Mixed In Key Hotcue Sync')} ({VERSAO_ATUAL})")
         self.geometry("650x620")
         self.resizable(False, False)
-        self.configure(fg_color="#1a1a1a")
+        self.configure(fg_color=COLOR_BG_DARK)
 
         # Garante foco e modalidade
         self.transient(master)
@@ -74,15 +77,15 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             pass
 
         if not img_carregada:
-            lbl_title = ctk.CTkLabel(self, text="MIXED IN KEY HOTCUE SYNC", font=ctk.CTkFont(size=22, weight="bold"), text_color="#3498DB")
+            lbl_title = ctk.CTkLabel(self, text="MIXED IN KEY HOTCUE SYNC", font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"), text_color="#3498DB")
             lbl_title.pack(pady=(30, 15))
 
         # Label Informativo unificado seguindo o padrão do Mirror Sync
-        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12, weight="bold"), text_color="#AAAAAA")
+        self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_TEXT_MUTED)
         self.lbl_db_auto.pack(pady=(5, 10), padx=40)
 
         # Seleção de Playlist
-        lbl_playlist = ctk.CTkLabel(self, text=self.txt.get("select_playlist_full_path", "Select Playlist:"), font=ctk.CTkFont(weight="bold"))
+        lbl_playlist = ctk.CTkLabel(self, text=self.txt.get("select_playlist_full_path", "Select Playlist:"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_playlist.pack(pady=(15, 5))
 
         self.combo_playlist = ctk.CTkComboBox(
@@ -91,17 +94,18 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             values=[],
             width=500,
             height=35,
-            state="disabled"
+            state="disabled",
+            corner_radius=CORNER_RADIUS_NONE
         )
         self.combo_playlist.pack(pady=5)
 
-        # Checkbox: Sobrescrever (Reutilizando string do constants.py)
-        self.check_overwrite = ctk.CTkCheckBox(
+        # Switch: Sobrescrever
+        self.check_overwrite = ctk.CTkSwitch( # Alterado de CTkCheckBox para CTkSwitch
             self,
             text=self.txt.get("hotcue_overwrite", "Sobrescrever hotcues").strip().replace("↳", "").strip(),
             variable=self.sobrescrever_hotcue,
-            font=ctk.CTkFont(size=12),
-            fg_color="#3498DB", hover_color="#2980B9"
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=COLOR_SWITCH_OFF, progress_color="#3498DB"
         )
         self.check_overwrite.pack(pady=10)
 
@@ -109,8 +113,8 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.btn_list = ctk.CTkButton(
             self,
             text=self.txt.get("mik_list_btn", "List Songs and Hotcues (Tags)"),
-            font=ctk.CTkFont(size=14, weight="bold"),
-            fg_color="#555555", hover_color="#777777",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), corner_radius=CORNER_RADIUS_NONE,
+            fg_color=COLOR_SWITCH_OFF, hover_color="#777777",
             height=40, width=350,
             command=self.listar_musicas_hotcues
         )
@@ -120,7 +124,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.btn_import = ctk.CTkButton(
             self,
             text=self.txt.get("mik_import_btn_action", "Start Tag Import"),
-            font=ctk.CTkFont(size=15, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"), corner_radius=CORNER_RADIUS_NONE,
             fg_color="#3498DB", hover_color="#2980B9",
             height=50, width=350,
             command=self.iniciar_importacao
@@ -128,15 +132,15 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.btn_import.pack(pady=30)
 
         # Barra de Progresso
-        self.progress_bar = ctk.CTkProgressBar(self, width=500, height=12, progress_color="#3498DB")
+        self.progress_bar = ctk.CTkProgressBar(self, width=500, height=12, progress_color="#3498DB", corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(pady=(0, 10))
         self.progress_bar.set(0)
 
         # Status Label
-        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#3498DB")
+        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color="#3498DB")
         self.lbl_status.pack(side="bottom", pady=20)
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def carregar_playlists(self):
@@ -306,16 +310,16 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             except:
                 pass
 
-        lbl_header = ctk.CTkLabel(viewer, text=f"Conteúdo da Playlist: {playlist_name}", font=ctk.CTkFont(size=16, weight="bold"))
+        lbl_header = ctk.CTkLabel(viewer, text=f"Conteúdo da Playlist: {playlist_name}", font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"))
         lbl_header.pack(pady=10)
 
-        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family="Consolas", size=11))
+        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
         textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
         textbox.insert("end", content)
         textbox.configure(state="disabled")
 
-        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def iniciar_importacao(self):

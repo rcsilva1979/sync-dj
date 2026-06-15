@@ -3,8 +3,22 @@ import sys
 IS_WIN = sys.platform.startswith('win')
 IS_MAC = sys.platform == 'darwin'
 
-VERSAO_ATUAL = "v1.0.0"
+VERSAO_ATUAL = "v0.0.9"
 APP_NAME = "Engine DJ Tools Suite"
+
+# --- ESTILOS GLOBAIS ---
+# Fontes
+FONT_FAMILY = "Consolas"
+
+# Cores
+COLOR_BG_DARK = "#111111" # Fundo principal
+COLOR_TEXT_NORMAL = "#FFFFFF"
+COLOR_TEXT_MUTED = "#AAAAAA"
+COLOR_SWITCH_OFF = "#555555"
+
+# Raio do Canto
+CORNER_RADIUS_NONE = 0
+
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
 GITHUB_API_URL = "https://api.github.com/repos/rcsilva1979/sync-dj"
 GITHUB_RELEASE_URL = "https://github.com/rcsilva1979/sync-dj/releases"

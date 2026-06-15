@@ -26,7 +26,10 @@ except (ImportError, ValueError):
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
-from constants import VERSAO_ATUAL, APP_NAME
+from constants import (VERSAO_ATUAL, APP_NAME, FONT_FAMILY,
+                       COLOR_BG_DARK, COLOR_TEXT_NORMAL,
+                       COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
+                       CORNER_RADIUS_NONE)
 
 class VirtualDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -42,7 +45,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         self.title(f"{self.txt.get('vdj_sync_title', 'Sync VDJ')} ({VERSAO_ATUAL})")
         self.geometry("600x400")
         self.resizable(False, False)
-        self.configure(fg_color="#242424")
+        self.configure(fg_color=COLOR_BG_DARK)
         
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
@@ -78,16 +81,16 @@ class VirtualDJWindow(ctk.CTkToplevel):
             pass
             
         if not img_carregada:
-            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("vdj_sync_title", "Sync VDJ"), font=ctk.CTkFont(size=24, weight="bold"), text_color="#00E5A3")
+            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("vdj_sync_title", "Sync VDJ"), font=ctk.CTkFont(family=FONT_FAMILY, size=24, weight="bold"), text_color="#00E5A3")
             lbl_titulo.pack(pady=(30, 10))
         else:
-            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("vdj_sync_title", "Sync VDJ"), font=ctk.CTkFont(size=18, weight="bold"), text_color="#00E5A3")
+            lbl_titulo = ctk.CTkLabel(self, text=self.txt.get("vdj_sync_title", "Sync VDJ"), font=ctk.CTkFont(family=FONT_FAMILY, size=18, weight="bold"), text_color="#00E5A3")
             lbl_titulo.pack(pady=(5, 10))
 
         lbl_desc = ctk.CTkLabel(
             self, 
             text=self.txt.get("vdj_sync_description", "Interface de Sincronização Virtual DJ"), 
-            font=ctk.CTkFont(size=14)
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14)
         )
         lbl_desc.pack(pady=(0, 20))
 
@@ -95,10 +98,10 @@ class VirtualDJWindow(ctk.CTkToplevel):
         self.btn_import = ctk.CTkButton(
             self, 
             text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"),
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             fg_color="#00E5A3",
             text_color="#000000",
-            hover_color="#00b37e",
+            hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE,
             height=40,
             width=300, # Largura ajustada para dar espaço aos dois botões
             command=self.importar_engine_para_vdj
@@ -109,10 +112,10 @@ class VirtualDJWindow(ctk.CTkToplevel):
         self.btn_export = ctk.CTkButton(
             self, 
             text=self.txt.get("vdj_import_btn", "Importar Playlist do VDJ para o Engine"),
-            font=ctk.CTkFont(size=14, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             fg_color="#D84343",
             text_color="#FFFFFF",
-            hover_color="#CE2323",
+            hover_color="#CE2323", corner_radius=CORNER_RADIUS_NONE,
             height=40,
             width=300, # Largura ajustada
             command=self.exportar_vdj_para_engine
@@ -122,6 +125,8 @@ class VirtualDJWindow(ctk.CTkToplevel):
         self.btn_voltar = ctk.CTkButton(
             self, 
             text=self.txt.get("vdj_back_btn", "Voltar"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            corner_radius=CORNER_RADIUS_NONE,
             command=self.destroy # Apenas fecha esta janela
         )
         self.btn_voltar.pack(pady=20)
@@ -142,12 +147,12 @@ class VirtualDJWindow(ctk.CTkToplevel):
         color_footer = "#AAAAAA" if settings and folders else "#FF5555"
         
         self.lbl_folders_info = ctk.CTkLabel(
-            self, text=text_footer, font=ctk.CTkFont(size=9), 
+            self, text=text_footer, font=ctk.CTkFont(family=FONT_FAMILY, size=9),
             text_color=color_footer, wraplength=550, justify="center"
         )
         self.lbl_folders_info.pack(side="bottom", pady=(0, 15))
 
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def importar_engine_para_vdj(self):

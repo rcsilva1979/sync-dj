@@ -1,15 +1,78 @@
 import os
 import sys
+import threading
+import webbrowser
+import tkinter as tk
 import customtkinter as ctk
 from PIL import Image, ImageTk
 from engine_gui import EngineSyncApp, get_resource_path
 from Sync_VDJ.vdj_gui import VirtualDJWindow
-from engine_sync_app import get_system_lang, STRINGS, SyncManager
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
+from engine_sync_app import get_system_lang, SyncManager, check_for_updates
+from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME, STRINGS,
+                       FONT_FAMILY, COLOR_BG_DARK, GITHUB_RELEASE_URL,
+                       COLOR_TEXT_NORMAL, COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
+                       CORNER_RADIUS_NONE)
+
+# ================= POP-UP DE ATUALIZAÇÃO =================
+class PopUpAtualizacao(ctk.CTkToplevel):
+    def __init__(self, master, txt, versao_nova):
+        super().__init__(master)
+        
+        self.txt = txt
+
+        self.title(txt["update_title"])
+        self.geometry("400x250")
+        self.resizable(False, False)
+        self.configure(fg_color=COLOR_BG_DARK)
+
+        # Toca o som de notificação nativo do sistema (Aviso de Atualização)
+        if sys.platform.startswith('win'):
+            try:
+                import winsound
+                # Usa MB_ICONEXCLAMATION para soar como um alerta/aviso
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            except:
+                self.bell()
+        else:
+            self.bell()
+        
+        if sys.platform.startswith('win') and hasattr(master, 'caminho_icone') and os.path.exists(master.caminho_icone):
+            def aplicar_icone():
+                try:
+                    self.iconbitmap(master.caminho_icone)
+                    self.wm_iconbitmap(master.caminho_icone)
+                except Exception:
+                    pass
+            self.after(250, aplicar_icone)
+        
+        self.transient(master)
+        self.grab_set()
+
+        lbl_header = ctk.CTkLabel(self, text=txt["update_title"], font=ctk.CTkFont(family=FONT_FAMILY, size=20, weight="bold"), text_color="#00E5A3")
+        lbl_header.pack(pady=(20, 10))
+
+        lbl_msg = ctk.CTkLabel(self, text=txt["update_msg"].format(VERSAO_ATUAL, versao_nova), font=ctk.CTkFont(family=FONT_FAMILY, size=14))
+        lbl_msg.pack(pady=(5, 20))
+
+        frame_botoes = ctk.CTkFrame(self, fg_color="transparent")
+        frame_botoes.pack(pady=10)
+
+        btn_baixar = ctk.CTkButton(frame_botoes, text=txt["btn_yes"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE, command=self.baixar_atualizacao)
+        btn_baixar.pack(side="left", padx=10)
+
+        btn_fechar = ctk.CTkButton(frame_botoes, text=txt["btn_no"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), fg_color="transparent", border_width=1, border_color=COLOR_SWITCH_OFF, hover_color="#333333", corner_radius=CORNER_RADIUS_NONE, command=self.destroy)
+        btn_fechar.pack(side="left", padx=10)
+
+    def baixar_atualizacao(self):
+        webbrowser.open(GITHUB_RELEASE_URL)
+        self.destroy()
 
 class LauncherHub(ctk.CTk):
     def __init__(self):
         super().__init__()
+
+        # Garante que as cores Pro Audio sejam renderizadas corretamente ignorando o tema do SO
+        ctk.set_appearance_mode("Dark")
 
         # Força o Windows a reconhecer o ícone na barra de tarefas (Taskbar)
         if IS_WIN:
@@ -30,9 +93,9 @@ class LauncherHub(ctk.CTk):
         self.txt = STRINGS[self.lang]
 
         self.title(f"Engine DJ Tools Hub ({VERSAO_ATUAL})")
-        self.geometry("600x600")
+        self.geometry("720x650")
         self.resizable(False, False)
-        self.configure(fg_color="#1a1a1a")
+        self.configure(fg_color=COLOR_BG_DARK)
 
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
@@ -50,6 +113,9 @@ class LauncherHub(ctk.CTk):
                 except Exception as e:
                     pass
             self.after(200, aplicar_icone)
+            
+        # Dispara o espião do GitHub em segundo plano ao abrir o app
+        threading.Thread(target=self._check_for_updates_thread, daemon=True).start()
 
         self.construir_ui()
 
@@ -60,80 +126,88 @@ class LauncherHub(ctk.CTk):
             if os.path.exists(img_path):
                 logo_img = ctk.CTkImage(Image.open(img_path), size=(450, 110))
                 lbl_logo = ctk.CTkLabel(self, text="", image=logo_img)
-                lbl_logo.pack(pady=(25, 15))
+                lbl_logo.pack(pady=(35, 10))
         except:
-            lbl_title = ctk.CTkLabel(self, text="ENGINE DJ TOOLS", font=ctk.CTkFont(size=24, weight="bold"), text_color="#00E5A3")
+            lbl_title = ctk.CTkLabel(self, text="ENGINE DJ TOOLS", font=ctk.CTkFont(family=FONT_FAMILY, size=28, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(30, 20))
 
-        lbl_subtitle = ctk.CTkLabel(self, text=self.txt["select_tool_prompt"], font=ctk.CTkFont(size=14))
-        lbl_subtitle.pack(pady=(0, 30))
+        lbl_subtitle = ctk.CTkLabel(self, text=self.txt["select_tool_prompt"].upper(), font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color="#777777")
+        lbl_subtitle.pack(pady=(0, 25))
 
-        # Botão 1: Mirror Sync (Antigo EngineSyncApp)
-        self.btn_mirror = ctk.CTkButton(
-            self, 
-            text=self.txt["mirror_sync_btn"],
-            font=ctk.CTkFont(size=15, weight="bold"),
-            height=60, width=400,
-            fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e",
-            command=self.abrir_mirror_sync
-        )
-        self.btn_mirror.pack(pady=10)
+        # Grid Container para os botões (estilo "Pro Audio Cards")
+        grid_frame = ctk.CTkFrame(self, fg_color="transparent")
+        grid_frame.pack(expand=True, padx=40, pady=10)
+        grid_frame.grid_columnconfigure((0, 1), weight=1, minsize=300)
 
-        # Botão 2: Sync VDJ (Integração VirtualDJ)
-        self.btn_vdj = ctk.CTkButton(
-            self, 
-            text=self.txt["sync_vdj_btn"],
-            font=ctk.CTkFont(size=15, weight="bold"),
-            height=60, width=400,
-            fg_color="#D84343", text_color="#FFFFFF", hover_color="#CE2323",
-            command=self.abrir_sync_vdj
-        )
-        self.btn_vdj.pack(pady=10)
+        button_style = {
+            "font": ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
+            "height": 90,
+            "corner_radius": CORNER_RADIUS_NONE,
+            "border_width": 1,
+            "border_color": "#333333"
+        }
 
-        # Botão 3: Importar Hotcues (Mixed In Key / Serato)
-        self.btn_hotcue = ctk.CTkButton(
-            self,
-            text=self.txt["hotcue_import_btn"],
-            font=ctk.CTkFont(size=15, weight="bold"),
-            height=60, width=400,
-            fg_color="#3498DB", text_color="#FFFFFF", hover_color="#2980B9",
-            command=self.abrir_import_hotcue
+        # Botão 1: Mirror Sync
+        btn_mirror = ctk.CTkButton(
+            grid_frame, text=self.txt["mirror_sync_btn"].replace(" (", "\n("),
+            fg_color=COLOR_BG_DARK, hover_color="#00E5A3", text_color=COLOR_TEXT_NORMAL,
+            command=self.abrir_mirror_sync, **button_style
         )
-        self.btn_hotcue.pack(pady=10)
+        btn_mirror.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
 
-        # Botão 4: Reencontrar Músicas Perdidas
-        self.btn_relocate = ctk.CTkButton(
-            self,
-            text=self.txt["relocate_lost_tracks_btn"],
-            font=ctk.CTkFont(size=15, weight="bold"),
-            height=60, width=400,
-            fg_color="#F39C12", text_color="#000000", hover_color="#D68910",
-            command=self.abrir_relocate
+        # Botão 2: Sync VDJ
+        btn_vdj = ctk.CTkButton(
+            grid_frame, text=self.txt["sync_vdj_btn"].replace(" (", "\n("),
+            fg_color=COLOR_BG_DARK, hover_color="#E70E0E", text_color=COLOR_TEXT_NORMAL,
+            command=self.abrir_sync_vdj, **button_style
         )
-        self.btn_relocate.pack(pady=10)
+        btn_vdj.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+
+        # Botão 3: Mixed In Key
+        btn_hotcue = ctk.CTkButton(
+            grid_frame, text=self.txt["hotcue_import_btn"].replace(" (", "\n("),
+            fg_color=COLOR_BG_DARK, hover_color="#3498DB", text_color=COLOR_TEXT_NORMAL,
+            command=self.abrir_import_hotcue, **button_style
+        )
+        btn_hotcue.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+
+        # Botão 4: Relocate
+        btn_relocate = ctk.CTkButton(
+            grid_frame, text=self.txt["relocate_lost_tracks_btn"].replace(" (", "\n("),
+            fg_color=COLOR_BG_DARK, hover_color="#F39C12", text_color=COLOR_TEXT_NORMAL,
+            command=self.abrir_relocate, **button_style
+        )
+        btn_relocate.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
+
+        # Rodapé e Configurações
+        bottom_frame = ctk.CTkFrame(self, fg_color="transparent")
+        bottom_frame.pack(side="bottom", fill="x", pady=(20, 15))
 
         # Frame para configurações globais de log
-        frame_log = ctk.CTkFrame(self, fg_color="transparent")
-        frame_log.pack(side="bottom", fill="x", padx=40, pady=(0, 5))
+        settings_frame = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        settings_frame.pack(pady=(0, 10))
 
-        self.chk_log = ctk.CTkCheckBox(
-            frame_log, text=self.txt.get("log_checkbox", "LOG"), 
+        lbl_settings = ctk.CTkLabel(settings_frame, text="Preferências:", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"), text_color=COLOR_TEXT_MUTED)
+        lbl_settings.pack(side="left", padx=10)
+
+        self.chk_log = ctk.CTkSwitch(
+            settings_frame, text=self.txt.get("log_checkbox", "LOG"),
             variable=self.log_ativo, command=self.salvar_config_log,
-            width=60, checkbox_width=16, checkbox_height=16, font=ctk.CTkFont(size=11),
-            fg_color="#00E5A3", hover_color="#00b37e"
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
         )
-        self.chk_log.pack(side="right")
-
-        self.chk_debug = ctk.CTkCheckBox(
-            frame_log, text=self.txt.get("debug_checkbox", "DEBUG"), 
+        self.chk_log.pack(side="right", padx=(0, 5))
+        self.chk_debug = ctk.CTkSwitch(
+            settings_frame, text=self.txt.get("debug_checkbox", "DEBUG"),
             variable=self.debug_ativo, command=self.salvar_config_log,
-            width=80, checkbox_width=16, checkbox_height=16, font=ctk.CTkFont(size=11),
-            fg_color="#00E5A3", hover_color="#00b37e"
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
         )
-        self.chk_debug.pack(side="right", padx=(5, 10))
-
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
-        lbl_footer.pack(side="bottom", pady=(5, 10))
+        self.chk_debug.pack(side="right", padx=(0, 10))
+        lbl_footer = ctk.CTkLabel(bottom_frame, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
+        lbl_footer.pack()
 
     def salvar_config_log(self):
         """Salva as configurações de log no arquivo global."""
@@ -155,6 +229,11 @@ class LauncherHub(ctk.CTk):
     def abrir_relocate(self):
         from relocate_gui import RelocateLostTracksWindow
         RelocateLostTracksWindow(self, self.txt)
+        
+    def _check_for_updates_thread(self):
+        versao_github = check_for_updates(VERSAO_ATUAL)
+        if versao_github:
+            self.after(1000, lambda: PopUpAtualizacao(self, self.txt, versao_github))
 
 def main():
     """Inicia o Launcher Hub."""
