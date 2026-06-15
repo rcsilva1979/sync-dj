@@ -3,10 +3,10 @@ import sys
 IS_WIN = sys.platform.startswith('win')
 IS_MAC = sys.platform == 'darwin'
 
-VERSAO_ATUAL = "v2.0.9"
+VERSAO_ATUAL = "v1.0.0"
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
-GITHUB_API_URL = "https://api.github.com/repos/lehdeejay82/Engine-Sync/releases/latest"
-GITHUB_RELEASE_URL = "https://github.com/lehdeejay81/Engine-Sync/releases/latest" # Corrected to lehdeejay81
+GITHUB_API_URL = "https://api.github.com/repos/xxx"
+GITHUB_RELEASE_URL = "https://github.com/xxx" # Corrected to lehdeejay81
 
 STRINGS = {
     "pt": {
