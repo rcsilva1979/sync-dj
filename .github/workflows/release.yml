@@ -30,10 +30,13 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --icon "images/sync_icon.ico" --name "EngineSync_${{ github.ref_name }}" main.py
 
+      - name: List dist folder
+        run: dir dist
+      
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/EngineSync_v${{ github.ref_name }}.exe
+          files: dist/EngineSync_${{ github.ref_name }}.exe
           name: Release ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           draft: false
