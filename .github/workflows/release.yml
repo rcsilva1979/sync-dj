@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*' # Dispara quando uma tag começando com 'v' é enviada
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -37,3 +40,4 @@ jobs:
           prerelease: false          
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
