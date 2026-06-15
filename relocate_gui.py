@@ -12,7 +12,7 @@ from database_utils import (
     update_track_path, get_track_id_by_path, update_playlist_entry_track
 )
 from engine_sync_app import get_resource_path, SyncManager
-from constants import IS_WIN, IS_MAC
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
 
 class RelocateLostTracksWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -20,7 +20,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.txt = txt_strings
         self.master = master
 
-        self.title(self.txt["relocate_title"])
+        self.title(f"{self.txt['relocate_title']} ({VERSAO_ATUAL})")
         self.geometry("650x700")
         self.resizable(False, False)
         self.configure(fg_color="#1a1a1a")
@@ -242,7 +242,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
 
         # Janela de visualização
         viewer = ctk.CTkToplevel(self)
-        viewer.title(f"Músicas Faltantes: {pl_nome}")
+        viewer.title(f"Músicas Faltantes ({VERSAO_ATUAL}): {pl_nome}")
         viewer.geometry("800x600")
         viewer.transient(self)
         viewer.grab_set()
@@ -580,7 +580,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
     def _abrir_janela_relatorio(self, playlist_name, content, is_dry_run=False):
         viewer = ctk.CTkToplevel(self)
         title_prefix = "RELATÓRIO DE VERIFICAÇÃO" if is_dry_run else "RELATÓRIO DE EXECUÇÃO"
-        viewer.title(f"{title_prefix}: {playlist_name}")
+        viewer.title(f"{title_prefix} ({VERSAO_ATUAL}): {playlist_name}")
         viewer.geometry("900x700")
         viewer.transient(self)
         viewer.grab_set()

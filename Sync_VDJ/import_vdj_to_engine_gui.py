@@ -12,7 +12,7 @@ from collections import defaultdict
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from database_utils import localizar_bancos_dados_engine, get_database_uuid
 from engine_sync_app import SyncManager, get_resource_path
-from constants import IS_WIN, IS_MAC
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
 
 try:
     # Tenta importar o VDJManager para localizar as pastas MyLists
@@ -24,7 +24,7 @@ class PlaylistContentWindow(ctk.CTkToplevel):
     def __init__(self, master, title, xml_paths):
         super().__init__(master)
         self.txt = master.txt
-        self.title(self.txt.get("content_title", "Conteúdo:").format(title=title)) # type: ignore
+        self.title(f"{self.txt.get('content_title', 'Conteúdo:').format(title=title)} ({VERSAO_ATUAL})") # type: ignore
         self.geometry("850x600")
         self.configure(fg_color="#1a1a1a")
 
@@ -95,7 +95,10 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         self.txt = txt_strings
         self.manager = SyncManager()
 
-        self.title(self.txt.get("vdj_import_btn", "Importar Playlist do VDJ para o Engine"))
+        self.title(f"{self.txt.get('vdj_import_btn', 'Importar Playlist do VDJ para o Engine')} ({VERSAO_ATUAL})")
+
+        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
         self.geometry("600x520")
         self.resizable(False, False)
         self.configure(fg_color="#242424")

@@ -12,13 +12,13 @@ from PIL import Image, ImageTk
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
-from constants import STRINGS, get_system_lang
+from constants import STRINGS, get_system_lang, VERSAO_ATUAL
 
 class CSVToVDJConverter(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.txt = STRINGS[get_system_lang()]
-        self.title(self.txt.get("csv_converter_title", "Engine DJ CSV to Virtual DJ XML Converter"))
+        self.title(f"{self.txt.get('csv_converter_title', 'Engine DJ CSV to Virtual DJ XML Converter')} ({VERSAO_ATUAL})")
         self.geometry("600x400")
         self.resizable(False, False)
         ctk.set_appearance_mode("Dark")
@@ -74,6 +74,9 @@ class CSVToVDJConverter(ctk.CTk):
                                          height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", 
                                          command=self.process_conversion)
         self.btn_convert.pack(pady=20)
+
+        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def log(self, message):
         self.txt_log.insert("end", f"[{Path(self.csv_path.get()).name if self.csv_path.get() else 'SISTEMA'}] {message}\n")

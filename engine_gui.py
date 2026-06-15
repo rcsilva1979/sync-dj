@@ -564,7 +564,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         """Abre a janela de visualização com o relatório completo da sincronização."""
         viewer = ctk.CTkToplevel(self)
         nome_limpo = self._limpar_nome_playlist(playlist_name)
-        viewer.title(f"Relatório Mirror Sync: {nome_limpo}")
+        viewer.title(f"Relatório Mirror Sync ({VERSAO_ATUAL}): {nome_limpo}")
         viewer.geometry("900x700")
         viewer.transient(self)
         viewer.grab_set()

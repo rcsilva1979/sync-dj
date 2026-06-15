@@ -12,7 +12,7 @@ import threading
 from database_utils import localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id
 from engine_sync_app import get_resource_path, SyncManager
 from le_json import read_mp3
-from constants import IS_WIN, IS_MAC
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
 from hotcue_normalizer import normalize_hotcues
 from engine_hotcues import format_time, parse_quick_cues, CueWrite, encode_quick_cues
 
@@ -22,7 +22,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.txt = txt_strings
         self.master = master
 
-        self.title(self.txt.get("mik_sync_title", "Mixed In Key Hotcue Sync"))
+        self.title(f"{self.txt.get('mik_sync_title', 'Mixed In Key Hotcue Sync')} ({VERSAO_ATUAL})")
         self.geometry("650x620")
         self.resizable(False, False)
         self.configure(fg_color="#1a1a1a")
@@ -288,7 +288,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
     def _abrir_janela_relatorio(self, playlist_name, content):
         """Abre a janela de visualização com o conteúdo completo processado."""
         viewer = ctk.CTkToplevel(self)
-        viewer.title(f"Músicas e Hotcues: {playlist_name}")
+        viewer.title(f"Músicas e Hotcues ({VERSAO_ATUAL}): {playlist_name}")
         viewer.geometry("900x700")
         viewer.transient(self)
         viewer.grab_set()

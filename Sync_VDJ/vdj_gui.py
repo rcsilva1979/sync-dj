@@ -26,6 +26,7 @@ except (ImportError, ValueError):
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
+from constants import VERSAO_ATUAL
 
 class VirtualDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -38,7 +39,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         self.after(100, self.lift)
         self.grab_set() 
 
-        self.title(self.txt.get("vdj_sync_title", "Sync VDJ"))
+        self.title(f"{self.txt.get('vdj_sync_title', 'Sync VDJ')} ({VERSAO_ATUAL})")
         self.geometry("600x400")
         self.resizable(False, False)
         self.configure(fg_color="#242424")
@@ -137,7 +138,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         else:
             footer_lines.append(self.txt.get("vdj_mylists_not_found", "Subpastas 'MyLists' não localizadas nos discos."))
             
-        text_footer = "\n".join(footer_lines)
+        text_footer = f"Engine DJ Tools Suite ({VERSAO_ATUAL})\n" + "\n".join(footer_lines)
         color_footer = "#AAAAAA" if settings and folders else "#FF5555"
         
         self.lbl_folders_info = ctk.CTkLabel(

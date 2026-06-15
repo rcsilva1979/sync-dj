@@ -13,6 +13,7 @@ import xml.dom.minidom as minidom
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) #
 from database_utils import get_tracks_by_playlist_id, localizar_bancos_dados_engine, get_database_uuid, get_all_playlists_hierarchical #
 from engine_sync_app import SyncManager, get_resource_path, IS_WIN, IS_MAC
+from constants import VERSAO_ATUAL
 from Sync_VDJ.vdj_logic import VDJManager
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
@@ -21,7 +22,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.txt = txt_strings
         self.master = master # Mantém uma referência à janela pai, se necessário
 
-        self.title(self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"))
+        self.title(f"{self.txt.get('vdj_export_btn', 'Exportar Playlist do Engine para o VDJ')} ({VERSAO_ATUAL})")
         self.geometry("600x600") 
         self.resizable(False, False)
         self.configure(fg_color="#242424")
@@ -444,5 +445,8 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.update_status(self.txt.get("error_exporting_playlist_info_vdj", "Erro ao exportar informações da playlist: {error}").format(error=e), "red")
             messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_exporting_playlist_info_detail", "Não foi possível exportar as informações da playlist: {error}").format(error=e))
 
+
+        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
     def update_status(self, message, color="#AAAAAA"):
         self.lbl_status.configure(text=message, text_color=color)
