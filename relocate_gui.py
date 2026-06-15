@@ -123,6 +123,10 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                            variable=self.fuzzy_action, value="rename", font=ctk.CTkFont(size=10))
         self.r_f_rename.pack(anchor="w", padx=35, pady=1)
 
+        self.r_f_copy = ctk.CTkRadioButton(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_copy", "Copiar arquivo para o local antigo"), 
+                                         variable=self.fuzzy_action, value="copy", font=ctk.CTkFont(size=10))
+        self.r_f_copy.pack(anchor="w", padx=35, pady=1)
+
         self.r_f_move = ctk.CTkRadioButton(self.frame_fuzzy_ops, text=self.txt.get("fuzzy_action_move", "Mover arquivo para o local antigo"), 
                                          variable=self.fuzzy_action, value="move", font=ctk.CTkFont(size=10))
         self.r_f_move.pack(anchor="w", padx=35, pady=1)
@@ -291,11 +295,13 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         if not db_pl_pairs: return
 
         def normalizar_nome(texto):
-            """Normaliza caracteres acentuados e remove espaços para busca robusta."""
+            """Normaliza caracteres acentuados e uniformiza espaços para busca robusta."""
             if not texto: return ""
             # Remove acentos, converte para minúsculas e remove a extensão para comparação parcial
-            texto_norm = unicodedata.normalize('NFD', str(texto).lower().strip())
+            texto_norm = unicodedata.normalize('NFD', str(texto).lower())
             texto_norm = "".join([c for c in texto_norm if not unicodedata.combining(c)])
+            # Remove espaços extras (múltiplos espaços viram um só) e strip
+            texto_norm = " ".join(texto_norm.split())
             return os.path.splitext(texto_norm)[0]
 
         current_mode = self.relocate_mode.get()
@@ -437,9 +443,10 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                     novo_caminho_abs = path_found
                                     break
                         
-                        # Se modo for restauração (cópia) e não achou no mesmo drive, tenta usar qualquer um encontrado
-                        if not novo_caminho_abs and found_somewhere and current_mode == "copy":
-                            novo_caminho_abs = file_index[search_key][0]
+                        # Se a ação for restaurar/mover para o local antigo, permite buscar o arquivo em outro disco
+                        permitir_outro_disco = current_mode == "copy" or (current_mode == "fuzzy" and fuzzy_act_val in ["copy", "move"])
+                        if not novo_caminho_abs and found_somewhere and permitir_outro_disco:
+                            novo_caminho_abs = found_paths[0]
 
                         if novo_caminho_abs:
                             try:
@@ -452,7 +459,22 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                     report_item.append(f"  Status: Localizado em {novo_caminho_abs}")
                                 
                                 if current_mode == "fuzzy":
-                                    if fuzzy_act_val == "move":
+                                    if fuzzy_act_val == "copy":
+                                        report_item.append(f"  Ação: Copiar arquivo para o local antigo")
+                                        report_item.append(f"  Origem:  {novo_caminho_abs}")
+                                        report_item.append(f"  Alvo:    {caminho_esperado}")
+                                        if not dry_run:
+                                            try:
+                                                os.makedirs(os.path.dirname(caminho_esperado), exist_ok=True)
+                                                if not os.path.exists(caminho_esperado):
+                                                    shutil.copy2(novo_caminho_abs, caminho_esperado)
+                                                    self.manager.log(log_paths, f"  [COPIADO] '{artist_title}' para local original: {caminho_esperado}")
+                                                update_track_path(db_path, track_id, track.get("path"))
+                                                total_relocated_all += 1
+                                            except Exception as e:
+                                                self.manager.log(log_paths, f"  [ERRO] Falha ao copiar: {e}")
+
+                                    elif fuzzy_act_val == "move":
                                         same_dir = os.path.dirname(os.path.abspath(novo_caminho_abs)) == os.path.dirname(os.path.abspath(caminho_esperado))
                                         if not same_dir: # Só move se for uma pasta diferente
                                             report_item.append(f"  Ação: Mover para local original")
@@ -469,7 +491,6 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                             report_item.append(f"  Aviso: Mover ignorado (Já na mesma pasta).")
                                             report_item.append(f"  Pasta Atual: {os.path.dirname(novo_caminho_abs)}")
                                             report_item.append(f"  Pasta Alvo:  {os.path.dirname(caminho_esperado)}")
-                                            # Não incrementa total_relocated_all pois nenhuma ação foi feita
                                             
                                     elif fuzzy_act_val == "rename":
                                         same_dir = os.path.dirname(os.path.abspath(novo_caminho_abs)) == os.path.dirname(os.path.abspath(caminho_esperado))
@@ -487,8 +508,6 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                             report_item.append(f"  Aviso: Renomear ignorado (Pastas diferentes).")
                                             report_item.append(f"  Pasta Atual: {os.path.dirname(novo_caminho_abs)}")
                                             report_item.append(f"  Pasta Alvo:  {os.path.dirname(caminho_esperado)}")
-                                            
-                                    # Opção 'update' removida da interface
 
                                 elif current_mode == "relocate":
                                     novo_rel_path = self.manager.formatar_caminho_engine(novo_caminho_abs, db_path)
@@ -528,10 +547,10 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                         elif found_somewhere:
                             report_item.append(f"  Status: Encontrado em outro disco ({found_paths[0]})")
                             report_item.append(f"  Caminho esperado: {caminho_esperado}")
-                            if current_mode == "relocate" and not novo_caminho_abs:
-                                self.manager.log(log_paths, f"  [AVISO] '{fname}' encontrado, mas em disco diferente do banco de dados.")
-                                skipped_different_drive += 1
+                            self.manager.log(log_paths, f"  [AVISO] '{fname}' ignorado: está em disco diferente do banco e a ação selecionada não permite restauração entre discos.")
+                            skipped_different_drive += 1
 
+                        # Garante que o item seja adicionado ao relatório, independentemente de ter sido processado ou ignorado
                         report_lines.append("\n".join(report_item) + "\n" + "-"*40 + "\n")
                     else:
                         self.manager.log(log_paths, f"  [NÃO ENCONTRADO] '{fname}' não localizado na pasta de busca.", nivel="debug")
