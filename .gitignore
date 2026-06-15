@@ -24,3 +24,5 @@ Reports/
 venv/
 
 .history/
+
+*.code-workspace
