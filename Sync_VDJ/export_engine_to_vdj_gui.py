@@ -13,7 +13,7 @@ import xml.dom.minidom as minidom
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) #
 from database_utils import get_tracks_by_playlist_id, localizar_bancos_dados_engine, get_database_uuid, get_all_playlists_hierarchical #
 from engine_sync_app import SyncManager, get_resource_path, IS_WIN, IS_MAC
-from constants import VERSAO_ATUAL
+from constants import VERSAO_ATUAL, APP_NAME
 from Sync_VDJ.vdj_logic import VDJManager
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
@@ -164,6 +164,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         # Status/Log
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
+
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def load_playlists_from_db(self, db_path):
         """Carrega as playlists do banco selecionado ou de todos os bancos detectados."""
@@ -446,7 +449,5 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_exporting_playlist_info_detail", "Não foi possível exportar as informações da playlist: {error}").format(error=e))
 
 
-        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
-        lbl_footer.pack(side="bottom", pady=(5, 10))
     def update_status(self, message, color="#AAAAAA"):
         self.lbl_status.configure(text=message, text_color=color)

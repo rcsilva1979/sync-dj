@@ -4,6 +4,7 @@ IS_WIN = sys.platform.startswith('win')
 IS_MAC = sys.platform == 'darwin'
 
 VERSAO_ATUAL = "v1.0.0"
+APP_NAME = "Engine DJ Tools Suite"
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
 GITHUB_API_URL = "https://api.github.com/repos/rcsilva1979/sync-dj"
 GITHUB_RELEASE_URL = "https://github.com/rcsilva1979/sync-dj/releases"

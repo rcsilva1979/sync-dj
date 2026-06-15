@@ -26,7 +26,7 @@ except (ImportError, ValueError):
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
-from constants import VERSAO_ATUAL
+from constants import VERSAO_ATUAL, APP_NAME
 
 class VirtualDJWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -138,7 +138,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         else:
             footer_lines.append(self.txt.get("vdj_mylists_not_found", "Subpastas 'MyLists' não localizadas nos discos."))
             
-        text_footer = f"Engine DJ Tools Suite ({VERSAO_ATUAL})\n" + "\n".join(footer_lines)
+        text_footer = "\n".join(footer_lines)
         color_footer = "#AAAAAA" if settings and folders else "#FF5555"
         
         self.lbl_folders_info = ctk.CTkLabel(
@@ -146,6 +146,9 @@ class VirtualDJWindow(ctk.CTkToplevel):
             text_color=color_footer, wraplength=550, justify="center"
         )
         self.lbl_folders_info.pack(side="bottom", pady=(0, 15))
+
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def importar_engine_para_vdj(self):
         """Placeholder para a lógica de importação do Engine para o VDJ."""

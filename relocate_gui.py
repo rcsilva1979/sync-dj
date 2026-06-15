@@ -12,7 +12,7 @@ from database_utils import (
     update_track_path, get_track_id_by_path, update_playlist_entry_track
 )
 from engine_sync_app import get_resource_path, SyncManager
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
 
 class RelocateLostTracksWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
@@ -21,7 +21,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.master = master
 
         self.title(f"{self.txt['relocate_title']} ({VERSAO_ATUAL})")
-        self.geometry("650x700")
+        self.geometry("650x750") # Altura reduzida para um layout mais compacto e funcional
         self.resizable(False, False)
         self.configure(fg_color="#1a1a1a")
 
@@ -169,7 +169,10 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.progress_bar.set(0)
 
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA")
-        self.lbl_status.pack(pady=5)
+        self.lbl_status.pack(pady=(5, 0))
+
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(pady=(2, 10)) # Removido side="bottom" para manter o rodapé próximo ao status
 
     def _handle_relocate_mode_change(self, *args):
         """Define a ação padrão da busca inteligente quando o modo é selecionado/desselecionado."""
@@ -249,6 +252,9 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
 
         lbl_header = ctk.CTkLabel(viewer, text=f"Músicas Faltantes em: {pl_nome}", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_header.pack(pady=10)
+
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
         textbox = ctk.CTkTextbox(viewer, width=760, height=500, font=ctk.CTkFont(family="Consolas", size=11))
         textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
@@ -587,6 +593,9 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
 
         lbl_header = ctk.CTkLabel(viewer, text=f"{title_prefix}\nPlaylist: {playlist_name}", font=ctk.CTkFont(size=16, weight="bold"))
         lbl_header.pack(pady=10)
+
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
         textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family="Consolas", size=11))
         textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)

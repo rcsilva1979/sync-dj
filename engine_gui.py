@@ -14,6 +14,7 @@ from constants import (
     URL_DOACAO, 
     GITHUB_RELEASE_URL, 
     STRINGS,
+    APP_NAME,
     IS_WIN,
     IS_MAC
 )
@@ -241,6 +242,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         #                                 fg_color="transparent", text_color="#00E5A3", hover_color=None,
         #                                 hover=False, cursor="hand2", command=self.abrir_link_doacao)
         # self.btn_doacao.pack(pady=(4, 6))
+
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def detectar_banco_por_drive(self):
         """Localiza o m.db automaticamente no mesmo disco da pasta de músicas."""
@@ -587,3 +591,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         
         textbox.insert("end", content)
         textbox.configure(state="disabled")
+
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))

@@ -12,7 +12,7 @@ from collections import defaultdict
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from database_utils import localizar_bancos_dados_engine, get_database_uuid
 from engine_sync_app import SyncManager, get_resource_path
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
 
 try:
     # Tenta importar o VDJManager para localizar as pastas MyLists
@@ -89,6 +89,9 @@ class PlaylistContentWindow(ctk.CTkToplevel):
         btn_close = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), command=self.destroy)
         btn_close.pack(pady=10)
 
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
+
 class ImportVDJToEngineWindow(ctk.CTkToplevel):
     def __init__(self, master, txt_strings):
         super().__init__(master)
@@ -97,8 +100,6 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
 
         self.title(f"{self.txt.get('vdj_import_btn', 'Importar Playlist do VDJ para o Engine')} ({VERSAO_ATUAL})")
 
-        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
-        lbl_footer.pack(side="bottom", pady=(5, 10))
         self.geometry("600x520")
         self.resizable(False, False)
         self.configure(fg_color="#242424")
@@ -200,6 +201,9 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                                      fg_color="#D84343", text_color="#FFFFFF", hover_color="#CE2323", height=45, width=350, 
                                      command=self.run_import)
         self.btn_run.pack(pady=20)
+
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def scan_vdj_playlists(self):
         """Varre as pastas MyLists em todos os discos e retorna a lista de arquivos .vdjfolder agrupados por nome."""

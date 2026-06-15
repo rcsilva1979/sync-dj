@@ -12,7 +12,7 @@ from PIL import Image, ImageTk
 if os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) not in sys.path:
     sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from engine_sync_app import get_resource_path, IS_WIN, IS_MAC
-from constants import STRINGS, get_system_lang, VERSAO_ATUAL
+from constants import STRINGS, get_system_lang, VERSAO_ATUAL, APP_NAME
 
 class CSVToVDJConverter(ctk.CTk):
     def __init__(self):
@@ -75,7 +75,7 @@ class CSVToVDJConverter(ctk.CTk):
                                          command=self.process_conversion)
         self.btn_convert.pack(pady=20)
 
-        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def log(self, message):

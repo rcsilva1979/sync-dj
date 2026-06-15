@@ -5,7 +5,7 @@ from PIL import Image, ImageTk
 from engine_gui import EngineSyncApp, get_resource_path
 from Sync_VDJ.vdj_gui import VirtualDJWindow
 from engine_sync_app import get_system_lang, STRINGS, SyncManager
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
 
 class LauncherHub(ctk.CTk):
     def __init__(self):
@@ -132,7 +132,7 @@ class LauncherHub(ctk.CTk):
         )
         self.chk_debug.pack(side="right", padx=(5, 10))
 
-        lbl_footer = ctk.CTkLabel(self, text=f"Engine DJ Tools Suite ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def salvar_config_log(self):

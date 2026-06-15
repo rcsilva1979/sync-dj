@@ -12,7 +12,7 @@ import threading
 from database_utils import localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id
 from engine_sync_app import get_resource_path, SyncManager
 from le_json import read_mp3
-from constants import IS_WIN, IS_MAC, VERSAO_ATUAL
+from constants import IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME
 from hotcue_normalizer import normalize_hotcues
 from engine_hotcues import format_time, parse_quick_cues, CueWrite, encode_quick_cues
 
@@ -135,6 +135,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         # Status Label
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#3498DB")
         self.lbl_status.pack(side="bottom", pady=20)
+
+        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def carregar_playlists(self):
         if not self.found_databases:
@@ -311,6 +314,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         
         textbox.insert("end", content)
         textbox.configure(state="disabled")
+
+        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(size=10), text_color="#555555")
+        lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def iniciar_importacao(self):
         # Verifica se o Engine DJ está aberto (mesma lógica e mensagens do Mirror Sync)
