@@ -29,3 +29,5 @@ venv/
 
 NOVA_INTERFACE/
 engine_sync_config.json
+
+_github_token.txt

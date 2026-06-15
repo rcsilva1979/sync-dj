@@ -1,3 +1,4 @@
+import os
 import sys
 
 IS_WIN = sys.platform.startswith('win')
@@ -22,7 +23,17 @@ CORNER_RADIUS_NONE = 0
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
 GITHUB_API_URL = "https://api.github.com/repos/rcsilva1979/sync-dj"
 GITHUB_RELEASE_URL = "https://github.com/rcsilva1979/sync-dj/releases"
-LATEST_RELEASE_API = "https://api.github.com/repos/rcsilva1979/sync-dj/releases/latest"
+LATEST_RELEASE_API = "https://api.github.com/repos/rcsilva1979/sync-dj/tags"
+
+def _load_github_token():
+    """Carrega o token de um arquivo local não versionado."""
+    token_file = os.path.join(os.path.dirname(__file__), "_github_token.txt")
+    if os.path.exists(token_file):
+        with open(token_file, "r") as f:
+            return f.read().strip()
+    return ""
+
+GITHUB_TOKEN = _load_github_token()
 
 STRINGS = {
     "pt": {

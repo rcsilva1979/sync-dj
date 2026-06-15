@@ -17,7 +17,8 @@ from tinytag import TinyTag
 from constants import (
     VERSAO_ATUAL, 
     STRINGS, 
-    GITHUB_API_URL, 
+    LATEST_RELEASE_API,
+    GITHUB_TOKEN,
     IS_WIN, 
     IS_MAC
 )
@@ -99,19 +100,37 @@ def get_resource_path(relative_path):
 #VERIFICA ATUALIZACAO
 def check_for_updates(current_version: str) -> str | None:
     """Verifica no GitHub se há uma nova versão disponível."""
+    print(f"DEBUG: Checking for updates. Current version: {current_version}")
     try:
         ctx = ssl._create_unverified_context()
-        req = urllib.request.Request(GITHUB_API_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        if GITHUB_TOKEN:
+            headers['Authorization'] = f'token {GITHUB_TOKEN}'
+            print("DEBUG: Using local GitHub Token for authentication.")
+            
+        req = urllib.request.Request(LATEST_RELEASE_API, headers=headers)
         
         with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+            print(f"DEBUG: GitHub API response status: {response.status}")
             if response.status == 200:
                 data = json.loads(response.read().decode())
-                github_version = data.get("tag_name", "")
+                
+                # O endpoint /tags retorna uma lista. Pegamos o primeiro item (mais recente).
+                if isinstance(data, list) and len(data) > 0:
+                    github_version = data[0].get("name", "")
+                else:
+                    github_version = ""
+                    
+                print(f"DEBUG: GitHub latest version: {github_version}")
                 
                 if github_version and versao_maior(github_version, current_version):
+                    print(f"DEBUG: New version {github_version} found!")
                     return github_version
-    except Exception:
-        pass
+                else:
+                    print(f"DEBUG: No new version or current is up-to-date.")
+    except Exception as e: # Captura a exceção como 'e'
+        print(f"DEBUG: Error checking for updates: {e}")
     return None
 
 # ==============================================================
