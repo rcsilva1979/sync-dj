@@ -27,5 +27,5 @@ venv/
 
 *.code-workspace
 
-NOVA INTERFACE/
+NOVA_INTERFACE/
 engine_sync_config.json
