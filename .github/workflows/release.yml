@@ -25,7 +25,7 @@ jobs:
 
       - name: Build EXE with PyInstaller
         run: |
-          python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --icon "images/sync_icon.ico" --name "EngineSync_v${{ github.ref_name }}" main.py
+          python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --icon "images/sync_icon.ico" --name "EngineSync_${{ github.ref_name }}" main.py
 
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
@@ -34,7 +34,6 @@ jobs:
           name: Release ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           draft: false
-          prerelease: false
-          generate_release_notes: true
+          prerelease: false          
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
