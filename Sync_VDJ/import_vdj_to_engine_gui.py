@@ -53,7 +53,7 @@ class PlaylistContentWindow(ctk.CTkToplevel):
         lbl = ctk.CTkLabel(self, text=self.txt.get("music_list_header", "Lista de Músicas: {title}").format(title=title), font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), text_color="#00E5A3")
         lbl.pack(pady=10)
         
-        self.textbox = ctk.CTkTextbox(self, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
+        self.textbox = ctk.CTkTextbox(self, font=ctk.CTkFont(family=FONT_FAMILY, size=11), width=800)
         self.textbox.pack(padx=20, pady=10, fill="both", expand=True)
 
         try:
@@ -89,7 +89,7 @@ class PlaylistContentWindow(ctk.CTkToplevel):
 
         self.textbox.configure(state="disabled")
 
-        btn_close = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), corner_radius=CORNER_RADIUS_NONE, command=self.destroy)
+        btn_close = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), command=self.destroy)
         btn_close.pack(pady=10)
         
         lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
@@ -158,11 +158,11 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         vdj_selector_frame = ctk.CTkFrame(vdj_frame, fg_color="transparent")
         vdj_selector_frame.pack(fill="x", pady=(5, 0))
 
-        self.vdj_options = self.scan_vdj_playlists() # type: ignore
-        self.combo_vdj = ctk.CTkComboBox(vdj_selector_frame, variable=self.selected_vdj_playlist, values=self.vdj_options, width=420, corner_radius=CORNER_RADIUS_NONE)
+        self.vdj_options = self.scan_vdj_playlists()
+        self.combo_vdj = ctk.CTkComboBox(vdj_selector_frame, variable=self.selected_vdj_playlist, values=self.vdj_options, width=420, corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY), dropdown_font=ctk.CTkFont(family=FONT_FAMILY))
         self.combo_vdj.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
-        btn_view = ctk.CTkButton(
+        btn_view = ctk.CTkButton( # type: ignore
             vdj_selector_frame, 
             text=self.txt.get("view_tracks_btn", "Ver Músicas"), 
             width=100, 
@@ -173,7 +173,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         )
         btn_view.pack(side="right")
 
-        if self.vdj_options:
+        if self.vdj_options: # type: ignore
             self.selected_vdj_playlist.set(self.vdj_options[0]) # type: ignore
 
         def get_vol_id(path):

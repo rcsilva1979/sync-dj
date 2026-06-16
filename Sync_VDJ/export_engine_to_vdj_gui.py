@@ -20,10 +20,16 @@ from constants import (VERSAO_ATUAL, APP_NAME, FONT_FAMILY,
 from Sync_VDJ.vdj_logic import VDJManager
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
+    """
+    Janela da ferramenta para exportar playlists do Engine DJ para o Virtual DJ.
+    Permite ao usuário selecionar um banco de dados do Engine DJ, uma playlist
+    e um diretório de destino no Virtual DJ para gerar um arquivo .vdjfolder.
+    """
     def __init__(self, master, txt_strings):
         super().__init__(master)
         self.txt = txt_strings
         self.master = master # Mantém uma referência à janela pai, se necessário
+        """Inicializa a janela de exportação do Engine DJ para o Virtual DJ."""
 
         self.title(f"{self.txt.get('vdj_export_btn', 'Exportar Playlist do Engine para o VDJ')} ({VERSAO_ATUAL})")
         self.geometry("600x600") 
@@ -53,11 +59,15 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.after(200, aplicar_icone)
 
         self.selected_playlist = ctk.StringVar()
+        # Variável para armazenar o caminho de destino no Virtual DJ.
         self.target_vdj_path = ctk.StringVar()
+        # Lista de opções de playlists disponíveis para seleção.
         self.playlists_options = []
+        # Mapeamento de caminhos de playlist para uma lista de tuplas (caminho_db, playlist_id).
         self.playlist_db_map = defaultdict(list) # Mapeia o caminho da playlist para uma LISTA de (caminho_db, playlist_id)
 
         # Busca automática de bancos de dados
+        # Lista de caminhos para todos os bancos de dados Engine DJ encontrados no sistema.
         self.found_databases = localizar_bancos_dados_engine()
 
         self.build_ui()
@@ -66,6 +76,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.selected_playlist.trace_add("write", lambda *args: self.atualizar_label_drives())
         
         # Carrega automaticamente as playlists de TODOS os bancos localizados
+        # Isso garante que o ComboBox de playlists seja preenchido ao iniciar a janela,
+        # mostrando playlists de todos os bancos detectados para uma visão abrangente.
+        # O label ">>> TODOS OS BANCOS LOCALIZADOS <<<" é usado para indicar essa opção.
         if self.found_databases: # type: ignore
             self.load_playlists_from_db(self.txt.get("all_dbs_label", ">>> TODOS OS BANCOS LOCALIZADOS <<<"))
 
@@ -91,16 +104,20 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             lbl_title = ctk.CTkLabel(self, text=self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"), font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color="#00E5A3")
             lbl_title.pack(pady=(5, 10))
 
+        # Label para exibir o status da detecção automática de bancos de dados.
         self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"), text_color="#00E5A3")
         self.lbl_db_auto.pack(pady=(10, 5))
 
         # Frame para seleção da playlist
+        # Agrupa os controles relacionados à seleção da playlist a ser exportada.
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")
         playlist_frame.pack(padx=20, pady=10, fill="x")
 
+        # Label para a seleção da playlist.
         lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("select_playlist_full_path", "Selecionar Playlist (Caminho Completo):"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_playlist.pack(anchor="w")
 
+        # ComboBox para selecionar a playlist a ser exportada.
         # Seletor de playlist usando ComboBox padrão (estável e com rolagem nativa)
         self.combo_playlist = ctk.CTkComboBox(
             playlist_frame,
@@ -108,17 +125,22 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             values=[],
             width=540,
             corner_radius=CORNER_RADIUS_NONE,
-            state="disabled"
+            state="disabled",
+            font=ctk.CTkFont(family=FONT_FAMILY),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY)
         )
         self.combo_playlist.pack(fill="x", expand=True, pady=(5, 0))
 
         # Frame para seleção da pasta de destino no VDJ
+        # Agrupa os controles relacionados à seleção do diretório de destino no Virtual DJ.
         target_frame = ctk.CTkFrame(self, fg_color="transparent")
         target_frame.pack(padx=20, pady=10, fill="x")
 
+        # Label para o diretório de destino no Virtual DJ.
         lbl_target = ctk.CTkLabel(target_frame, text=self.txt.get("vdj_target_label", "Destino no Virtual DJ:"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_target.pack(anchor="w")
 
+        # ComboBox para selecionar o diretório de destino no Virtual DJ.
         # Obtém as pastas MyLists/My List automaticamente
         vdj_destinos = self.vdj_manager.localizar_diretorios_folders()
         vdj_destinos_display = [os.path.normpath(p) for p in vdj_destinos] # Normaliza para exibição
@@ -128,14 +150,15 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             variable=self.target_vdj_path,
             values=vdj_destinos_display,
             width=450,
-            corner_radius=CORNER_RADIUS_NONE
+            corner_radius=CORNER_RADIUS_NONE,
+            font=ctk.CTkFont(family=FONT_FAMILY),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY)
         )
         self.combo_target.pack(fill="x", expand=True)
         if vdj_destinos:
-            # Garante que o valor inicial seja um dos valores válidos
-            if self.target_vdj_path.get() not in vdj_destinos_display and vdj_destinos_display:
-                self.target_vdj_path.set(vdj_destinos_display[0])
-            self.target_vdj_path.set(vdj_destinos[0])
+            # Define o primeiro destino localizado como padrão
+            self.target_vdj_path.set(vdj_destinos_display[0])
+        # Botão para iniciar o processo de exportação da playlist.
 
         # Botão de Importar
         btn_import = ctk.CTkButton(
@@ -151,6 +174,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         )
         btn_import.pack(pady=20)
 
+        # Botão para exportar informações detalhadas da playlist do Engine DJ para um arquivo JSON.
         # Botão para Exportar informações da Playlist do Engine DJ
         btn_export_info = ctk.CTkButton(
             self,
@@ -165,15 +189,21 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         )
         btn_export_info.pack(pady=5)
 
-
         # Status/Log
+        # Label para exibir mensagens de status e feedback ao usuário.
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color=COLOR_TEXT_MUTED, wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
 
+        # Rodapé com informações do aplicativo.
         lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
     def load_playlists_from_db(self, db_path):
+        """
+        Carrega as playlists do banco de dados selecionado (ou de todos os bancos detectados)
+        e as exibe no ComboBox de playlists.
+        Atualiza o label de status e o destaque dos drives.
+        """
         """Carrega as playlists do banco selecionado ou de todos os bancos detectados."""
         if not db_path:
             return # type: ignore
@@ -221,6 +251,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.selected_playlist.set("")
 
     def _get_vol_id(self, path):
+        """
+        Helper para identificar o 'Drive' no Windows ou 'Volume' no macOS a partir de um caminho.
+        """
         """Helper para identificar o 'Drive' no Win ou 'Volume' no Mac."""
         abs_p = os.path.abspath(path)
         if IS_WIN:
@@ -230,6 +263,9 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             return p[2] if len(p) > 2 and p[1] == 'Volumes' else 'System'
 
     def atualizar_label_drives(self):
+        """
+        Atualiza o label que exibe os drives detectados, destacando aqueles que contêm a playlist selecionada.
+        """
         """Atualiza a visualização dos drives destacando onde a playlist selecionada está presente."""
         if not self.found_databases:
             self.lbl_db_auto.configure(text=f"✖ {self.txt.get('not_found', 'Não localizada')}", text_color="#FF5555")
@@ -252,6 +288,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.lbl_db_auto.configure(text=status_text, text_color="#00E5A3")
 
     def perform_import(self):
+        """
+        Executa a exportação da playlist selecionada do Engine DJ para o Virtual DJ.
+        Coleta as faixas de todos os bancos onde a playlist existe, unifica-as e gera um arquivo .vdjfolder.
+        """
         display_name = self.selected_playlist.get()
         sources = self.playlist_db_map.get(display_name) # type: ignore
         dest_path = self.target_vdj_path.get()
@@ -366,6 +406,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_generating_xml_vdj", "Não foi possível gerar o arquivo XML:\n{error}").format(error=e))
 
     def export_engine_playlist_info(self):
+        """
+        Exporta as informações detalhadas da playlist selecionada do Engine DJ para um arquivo JSON.
+        Coleta as faixas de todos os bancos onde a playlist existe, unifica-as e salva em um arquivo JSON.
+        """
         display_name = self.selected_playlist.get()
         sources = self.playlist_db_map.get(display_name)
 
@@ -447,12 +491,18 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.update_status(self.txt.get("exported_tracks_from_dbs_count", "Exportadas {num_tracks} faixas de {num_dbs} banco(s).").format(num_tracks=len(all_tracks), num_dbs=len(sources)), "green")
             messagebox.showinfo(
                 self.txt.get("export_title", "Exportar"),
-                self.txt.get("success_playlist_info_exported_detail_vdj", "Playlist '{playlist_name}' exportada ({num_tracks} faixas unificadas).\n\nArquivo: {output_file_path}").format(playlist_name=display_name, num_tracks=len(all_tracks), output_file_path=output_file_path)
+                self.txt.get("success_playlist_info_exported_detail_vdj").format(
+                    playlist_name=display_name, num_tracks=len(all_tracks), output_file_path=output_file_path
+                )
             )
-        except Exception as e: # type: ignore
-            self.update_status(self.txt.get("error_exporting_playlist_info_vdj", "Erro ao exportar informações da playlist: {error}").format(error=e), "red")
-            messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_exporting_playlist_info_detail", "Não foi possível exportar as informações da playlist: {error}").format(error=e))
-
+        except Exception as e:
+            if 'log_paths' in locals():
+                self.manager.log(log_paths, f"Erro ao exportar JSON: {e}")
+            self.update_status(self.txt.get("error_exporting_playlist_info", "Erro: {error}").format(error=e), "red")
+            messagebox.showerror(self.txt.get("error_export_title", "Erro"), self.txt.get("error_exporting_playlist_info_detail", "{error}").format(error=e))
 
     def update_status(self, message, color="#AAAAAA"):
+        """
+        Atualiza o label de status na parte inferior da janela com uma mensagem e cor específicas.
+        """
         self.lbl_status.configure(text=message, text_color=color)

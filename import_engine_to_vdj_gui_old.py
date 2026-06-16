@@ -14,10 +14,16 @@ from Sync_VDJ.vdj_logic import VDJManager
 
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
+    """
+    Janela da ferramenta para exportar playlists do Engine DJ para o Virtual DJ.
+    Permite ao usuário selecionar um banco de dados do Engine DJ, uma playlist
+    e um diretório de destino no Virtual DJ para gerar um arquivo .vdjfolder.
+    """
     def __init__(self, master, txt_strings):
         super().__init__(master)
         self.txt = txt_strings
         self.master = master # Mantém uma referência à janela pai, se necessário
+        """Inicializa a janela de exportação do Engine DJ para o Virtual DJ."""
 
         self.title(self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"))
         self.geometry("600x580") #
@@ -35,17 +41,23 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             except: pass
 
         self.engine_db_path = ctk.StringVar()
+        # Variável para armazenar a playlist selecionada pelo usuário.
         self.selected_playlist = ctk.StringVar()
+        # Variável para armazenar o caminho de destino no Virtual DJ.
         self.target_vdj_path = ctk.StringVar()
+        # Lista de opções de playlists disponíveis para seleção.
         self.playlists_options = []
 
         # Busca automática de bancos de dados
+        # Lista de caminhos para todos os bancos de dados Engine DJ encontrados no sistema.
         self.found_databases = localizar_bancos_dados_engine()
         if self.found_databases:
             self.engine_db_path.set(self.found_databases[0])
 
         self.build_ui()
         
+        # Se um banco de dados foi encontrado automaticamente, carrega as playlists dele.
+        # Isso garante que o ComboBox de playlists seja preenchido ao iniciar a janela.
         # Se encontrou um banco, já carrega as playlists inicialmente
         if self.engine_db_path.get():
             self.load_playlists_from_db(self.engine_db_path.get())
@@ -74,12 +86,14 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             lbl_title.pack(pady=(5, 10))
 
         # Frame para seleção do banco de dados
+        # Agrupa os controles relacionados à seleção do banco de dados do Engine DJ.
         db_frame = ctk.CTkFrame(self, fg_color="transparent")
         db_frame.pack(padx=20, pady=10, fill="x")
 
         self.lbl_db = ctk.CTkLabel(db_frame, text=self.txt.get("db_file", "Banco de Dados (m.db):"), font=ctk.CTkFont(weight="bold"))
         self.lbl_db.pack(anchor="w")
 
+        # ComboBox para selecionar o banco de dados do Engine DJ.
         # Substituído Entry por ComboBox para busca automática
         self.combo_db = ctk.CTkComboBox(
             db_frame,
@@ -90,6 +104,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         )
         self.combo_db.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
+        # Botão para abrir o diálogo de seleção manual do banco de dados.
         btn_browse_db = ctk.CTkButton(
             db_frame,
             text=self.txt.get("browse", "Procurar"),
@@ -102,12 +117,14 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         btn_browse_db.pack(side="right")
 
         # Frame para seleção da playlist
+        # Agrupa os controles relacionados à seleção da playlist a ser exportada.
         playlist_frame = ctk.CTkFrame(self, fg_color="transparent")
         playlist_frame.pack(padx=20, pady=10, fill="x")
 
         lbl_playlist = ctk.CTkLabel(playlist_frame, text=self.txt.get("playlist", "Playlist Raiz:"), font=ctk.CTkFont(weight="bold"))
         lbl_playlist.pack(anchor="w")
 
+        # ComboBox para selecionar a playlist a ser exportada.
         self.combo_playlist = ctk.CTkComboBox(
             playlist_frame,
             variable=self.selected_playlist,
@@ -118,12 +135,14 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.combo_playlist.pack(fill="x", expand=True)
 
         # Frame para seleção da pasta de destino no VDJ
+        # Agrupa os controles relacionados à seleção do diretório de destino no Virtual DJ.
         target_frame = ctk.CTkFrame(self, fg_color="transparent")
         target_frame.pack(padx=20, pady=10, fill="x")
 
         lbl_target = ctk.CTkLabel(target_frame, text=self.txt.get("vdj_target_label", "Destino no Virtual DJ:"), font=ctk.CTkFont(weight="bold"))
         lbl_target.pack(anchor="w")
 
+        # ComboBox para selecionar o diretório de destino no Virtual DJ.
         # Obtém as pastas MyLists/My List automaticamente
         vdj_destinos = self.vdj_manager.localizar_diretorios_folders()
         vdj_destinos_display = [os.path.normpath(p) for p in vdj_destinos] # Normaliza para exibição
@@ -138,6 +157,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         if vdj_destinos:
             self.target_vdj_path.set(vdj_destinos[0])
 
+        # Botão para iniciar o processo de exportação da playlist.
         # Botão de Importar
         btn_import = ctk.CTkButton(
             self,
@@ -152,6 +172,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         )
         btn_import.pack(pady=20)
 
+        # Botão para exportar informações detalhadas da playlist do Engine DJ para um arquivo JSON.
         # Botão para Exportar informações da Playlist do Engine DJ
         btn_export_info = ctk.CTkButton(
             self,
@@ -166,12 +187,16 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         )
         btn_export_info.pack(pady=5)
 
-
         # Status/Log
+        # Label para exibir mensagens de status e feedback ao usuário.
         self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(size=12), text_color="#AAAAAA", wraplength=450)
         self.lbl_status.pack(pady=(0, 10))
 
     def browse_engine_db(self):
+        """
+        Abre um diálogo para o usuário selecionar manualmente um arquivo de banco de dados do Engine DJ (m.db).
+        Atualiza o campo de seleção de banco de dados e recarrega as playlists.
+        """
         db_path = filedialog.askopenfilename(
             title=self.txt.get("db_file", "Selecionar Banco de Dados Engine DJ (m.db)"),
             filetypes=[("Engine DJ Database", "*.db")]
@@ -192,6 +217,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.update_status("Seleção de banco de dados cancelada.")
 
     def load_playlists_from_db(self, db_path):
+        """
+        Carrega as playlists do banco de dados Engine DJ especificado e as exibe no ComboBox.
+        Atualiza o UUID do banco de dados na interface.
+        """
         if not os.path.exists(db_path):
             self.update_status("Erro: Arquivo de banco de dados não encontrado.", "red")
             self.combo_playlist.configure(values=[], state="disabled")
@@ -223,6 +252,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.selected_playlist.set("")
 
     def perform_import(self):
+        """
+        Executa a exportação da playlist selecionada do Engine DJ para o Virtual DJ.
+        Gera um arquivo .vdjfolder com as informações das faixas.
+        """
         db_path = self.engine_db_path.get() # type: ignore
         playlist_name = self.selected_playlist.get() # type: ignore
         dest_path = self.target_vdj_path.get() # type: ignore
@@ -243,6 +276,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.destroy() # Fecha a janela após a ação
 
     def export_engine_playlist_info(self):
+        """
+        Exporta as informações detalhadas da playlist selecionada do Engine DJ para um arquivo JSON.
+        Inclui dados como título, artista, álbum, caminho do arquivo, etc.
+        """
         db_path = self.engine_db_path.get() # type: ignore
         playlist_name = self.selected_playlist.get() # type: ignore
 
@@ -288,4 +325,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_exporting_playlist_info_detail").format(error=e))
 
     def update_status(self, message, color="#AAAAAA"):
+        """
+        Atualiza o label de status na parte inferior da janela com uma mensagem e cor específicas.
+        """
         self.lbl_status.configure(text=message, text_color=color)

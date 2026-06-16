@@ -1,10 +1,13 @@
 import os
 import sys
 
+# Verifica o sistema operacional para compatibilidade
 IS_WIN = sys.platform.startswith('win')
 IS_MAC = sys.platform == 'darwin'
 
-VERSAO_ATUAL = "v0.0.9"
+# Versão atual do aplicativo
+VERSAO_ATUAL = "v1.1.0"
+# Nome do aplicativo
 APP_NAME = "Engine DJ Tools Suite"
 
 # --- ESTILOS GLOBAIS ---
@@ -18,11 +21,14 @@ COLOR_TEXT_MUTED = "#AAAAAA"
 COLOR_SWITCH_OFF = "#555555"
 
 # Raio do Canto
+# Usado para definir cantos retos em elementos da UI
 CORNER_RADIUS_NONE = 0
 
+# URLs para doação e informações do GitHub
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
 GITHUB_API_URL = "https://api.github.com/repos/rcsilva1979/sync-dj"
 GITHUB_RELEASE_URL = "https://github.com/rcsilva1979/sync-dj/releases"
+# URL para buscar as últimas tags de release no GitHub
 LATEST_RELEASE_API = "https://api.github.com/repos/rcsilva1979/sync-dj/tags"
 
 def _load_github_token():
@@ -33,6 +39,7 @@ def _load_github_token():
             return f.read().strip()
     return ""
 
+# Token do GitHub carregado para autenticação em requisições à API
 GITHUB_TOKEN = _load_github_token()
 
 STRINGS = {
@@ -163,8 +170,8 @@ STRINGS = {
         "success_xml_generated": "Playlist XML gerada com sucesso!\n{count} músicas processadas.",
         "sync_btn": "Iniciar Sincronização",
         "sync_vdj_btn": "Sync VDJ (Engine ⟷ Virtual DJ)",
-        "title": "Engine DJ - Mirror Sync",
-        "update_msg": "Uma nova versão do Engine Sync está disponível!\n\nSua versão: {}\nNova versão: {}\n\nDeseja baixar a atualização agora?",
+        "title": "Sync DJ - Mirror Sync",
+        "update_msg": "Uma nova versão do Sync DJ está disponível!\n\nSua versão: {}\nNova versão: {}\n\nDeseja baixar a atualização agora?",
         "update_title": "Atualização Disponível!",
         "vdj_back_btn": "Voltar para Sync DJ",
         "vdj_config_label": "Configuração: {settings}",
@@ -309,8 +316,8 @@ STRINGS = {
         "success_xml_generated": "Playlist XML successfully generated!\n{count} tracks processed.",
         "sync_btn": "Start Synchronization",
         "sync_vdj_btn": "Sync VDJ (Engine ⟷ Virtual DJ)",
-        "title": "Engine DJ - Mirror Sync",
-        "update_msg": "A new version of Engine Sync is available!\n\nYour version: {}\nNew version: {}\n\nWould you like to download it now?",
+        "title": "Sync DJ - Mirror Sync",
+        "update_msg": "A new version of Sync DJ is available!\n\nYour version: {}\nNew version: {}\n\nWould you like to download it now?",
         "update_title": "Update Available!",
         "vdj_back_btn": "Back to Sync DJ",
         "vdj_config_label": "Configuration: {settings}",
@@ -348,7 +355,7 @@ STRINGS = {
         "debug_checkbox": "DEBUG",
         "donation_text": "¿Te ha resultado útil esta aplicación? ¿Te gustaría animarme a seguir\nactualizándola invitándome a un café? ☕ Haz clic aquí ☺️",
         "engine_dbs_detected": "Bases de Datos Engine detectadas: {count}",
-        "engine_sync_title": "ENGINE DJ SYNC",
+        "engine_sync_title": "SYNC DJ",
         "error_conversion_title": "Error de Conversión",
         "error_db": "¡Error: Archivo m.db no encontrado!",
         "error_db_file_not_found_vdj_export": "Error: Archivo de base de datos no encontrado.",
@@ -454,8 +461,8 @@ STRINGS = {
         "success_xml_generated": "¡Playlist XML generada con éxito!\n{count} canciones procesadas.",
         "sync_btn": "Iniciar Sincronización",
         "sync_vdj_btn": "Sync VDJ (Engine ⟷ Virtual DJ)",
-        "title": "Engine DJ - Mirror Sync",
-        "update_msg": "¡Una nova versión de Engine Sync está disponible!\n\nTu versão: {}\nNueva versión: {}\n\n¿Quieres descargarla ahora?",
+        "title": "Sync DJ - Mirror Sync",
+        "update_msg": "¡Una nova versión de Sync DJ está disponible!\n\nTu versão: {}\nNueva versión: {}\n\n¿Quieres descargarla ahora?",
         "update_title": "¡Actualización Disponible!",
         "vdj_config_label": "Configuración: {settings}",
         "vdj_export_btn": "Exportar Playlist de Engine DJ a VDJ",

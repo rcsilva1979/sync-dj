@@ -32,10 +32,16 @@ from constants import (VERSAO_ATUAL, APP_NAME, FONT_FAMILY,
                        CORNER_RADIUS_NONE)
 
 class VirtualDJWindow(ctk.CTkToplevel):
+    """
+    Janela principal da ferramenta de sincronização Virtual DJ.
+    Atua como um hub para as funcionalidades de exportação do Engine DJ para o VDJ
+    e importação do VDJ para o Engine DJ.
+    """
     def __init__(self, master, txt_strings):
         super().__init__(master)
         
         self.txt = txt_strings
+        # Instância do VDJManager para gerenciar operações específicas do Virtual DJ.
         self.vdj_manager = VDJManager()
 
         # Garante que a janela abra na frente e ganhe foco
@@ -47,6 +53,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
         
+        # Configuração do ícone da janela.
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
         if os.path.exists(self.caminho_icone):
@@ -64,6 +71,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
             self.after(200, aplicar_icone)
 
         # UI Inicial do Menu VDJ
+        # Constrói a interface do usuário para esta janela.
         self.construir_ui()
 
     def construir_ui(self):
@@ -88,12 +96,14 @@ class VirtualDJWindow(ctk.CTkToplevel):
             lbl_titulo.pack(pady=(5, 10))
 
         lbl_desc = ctk.CTkLabel(
-            self, 
+            self, # type: ignore
             text=self.txt.get("vdj_sync_description", "Interface de Sincronização Virtual DJ"), 
             font=ctk.CTkFont(family=FONT_FAMILY, size=14)
         )
+        # Descrição da ferramenta.
         lbl_desc.pack(pady=(0, 20))
 
+        # Botão para abrir a janela de exportação do Engine DJ para o Virtual DJ.
         # Botão Importar (Engine -> VDJ)
         self.btn_import = ctk.CTkButton(
             self, 
@@ -108,6 +118,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         )
         self.btn_import.pack(pady=10)
 
+        # Botão para abrir a janela de importação do Virtual DJ para o Engine DJ.
         # Botão Exportar (VDJ -> Engine)
         self.btn_export = ctk.CTkButton(
             self, 
@@ -122,6 +133,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         )
         self.btn_export.pack(pady=10)
 
+        # Botão para fechar esta janela e retornar ao hub principal.
         self.btn_voltar = ctk.CTkButton(
             self, 
             text=self.txt.get("vdj_back_btn", "Voltar"),
@@ -131,6 +143,7 @@ class VirtualDJWindow(ctk.CTkToplevel):
         )
         self.btn_voltar.pack(pady=20)
 
+        # Exibe informações sobre os caminhos de configuração e pastas MyLists do Virtual DJ.
         # Rodapé: Exibe caminhos de sistema (Settings e MyLists) do VirtualDJ
         settings = self.vdj_manager.settings_path
         folders = self.vdj_manager.localizar_diretorios_folders()
@@ -146,19 +159,13 @@ class VirtualDJWindow(ctk.CTkToplevel):
         text_footer = "\n".join(footer_lines)
         color_footer = "#AAAAAA" if settings and folders else "#FF5555"
         
-        self.lbl_folders_info = ctk.CTkLabel(
-            self, text=text_footer, font=ctk.CTkFont(family=FONT_FAMILY, size=9),
-            text_color=color_footer, wraplength=550, justify="center"
-        )
-        self.lbl_folders_info.pack(side="bottom", pady=(0, 15))
-
-        lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
-        lbl_footer.pack(side="bottom", pady=(5, 10))
+        self.lbl_folders_info = ctk.CTkLabel(self, text=text_footer, font=ctk.CTkFont(family=FONT_FAMILY, size=10), text_color=color_footer, wraplength=550)
+        self.lbl_folders_info.pack(side="bottom", pady=(5, 10))
 
     def importar_engine_para_vdj(self):
-        """Placeholder para a lógica de importação do Engine para o VDJ."""
+        """Abre a janela para exportar playlists do Engine DJ para o Virtual DJ."""
         ImportEngineToVDJWindow(self, self.txt)
 
     def exportar_vdj_para_engine(self):
-        """Placeholder para a lógica de exportação do VDJ para o Engine."""
+        """Abre a janela para importar playlists do Virtual DJ para o Engine DJ."""
         ImportVDJToEngineWindow(self, self.txt)

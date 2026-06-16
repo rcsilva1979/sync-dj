@@ -18,12 +18,19 @@ from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME,
                        COLOR_SWITCH_OFF, CORNER_RADIUS_NONE)
 from hotcue_normalizer import normalize_hotcues
 from engine_hotcues import format_time, parse_quick_cues, CueWrite, encode_quick_cues
+from report_gui import ReportWindow
 
 class MixedInKeyWindow(ctk.CTkToplevel):
+    """
+    Janela da ferramenta para sincronizar hotcues do Mixed In Key (lidos de tags MP3)
+    com o banco de dados do Engine DJ.
+    Permite ao usuário listar hotcues existentes e importar novos, com opção de sobrescrever.
+    """
     def __init__(self, master, txt_strings):
         super().__init__(master)
         self.txt = txt_strings
         self.master = master
+        """Inicializa a janela da ferramenta Mixed In Key Hotcue Sync."""
 
         self.title(f"{self.txt.get('mik_sync_title', 'Mixed In Key Hotcue Sync')} ({VERSAO_ATUAL})")
         self.geometry("650x620")
@@ -35,6 +42,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.grab_set()
         self.after(10, self.lift)
 
+        # Instância do SyncManager para gerenciar operações de backend e configurações.
         self.manager = SyncManager()
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
@@ -53,8 +61,11 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             self.after(200, aplicar_icone)
 
         self.selected_playlist = ctk.StringVar()
+        # Variável booleana para controlar a opção de sobrescrever hotcues existentes.
         self.sobrescrever_hotcue = ctk.BooleanVar(value=False)
+        # Lista de caminhos para todos os bancos de dados Engine DJ encontrados no sistema.
         self.found_databases = localizar_bancos_dados_engine()
+        # Mapeamento de caminhos de playlist para uma lista de tuplas (caminho_db, playlist_id).
         self.playlist_db_map = defaultdict(list)
 
         self.construir_ui()
@@ -62,6 +73,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.carregar_playlists()
 
     def construir_ui(self):
+        """Cria e organiza todos os elementos da interface gráfica da janela Mixed In Key."""
         # Logo Superior
         img_carregada = False
         try:
@@ -77,12 +89,15 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             pass
 
         if not img_carregada:
-            lbl_title = ctk.CTkLabel(self, text="MIXED IN KEY HOTCUE SYNC", font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"), text_color="#3498DB")
+            # Fallback para o título se a imagem do logo não puder ser carregada.
+            lbl_title = ctk.CTkLabel(self, text=self.txt.get("mik_sync_title", "MIXED IN KEY HOTCUE SYNC").upper(), font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"), text_color="#3498DB")
             lbl_title.pack(pady=(30, 15))
 
         # Label Informativo unificado seguindo o padrão do Mirror Sync
+        # Exibe o status da detecção automática do banco de dados.
         self.lbl_db_auto = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color=COLOR_TEXT_MUTED)
         self.lbl_db_auto.pack(pady=(5, 10), padx=40)
+        # Label para a seleção da playlist.
 
         # Seleção de Playlist
         lbl_playlist = ctk.CTkLabel(self, text=self.txt.get("select_playlist_full_path", "Select Playlist:"), font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
@@ -95,10 +110,12 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             width=500,
             height=35,
             state="disabled",
-            corner_radius=CORNER_RADIUS_NONE
+            corner_radius=CORNER_RADIUS_NONE,
+            font=ctk.CTkFont(family=FONT_FAMILY)
         )
         self.combo_playlist.pack(pady=5)
 
+        # Switch para controlar a opção de sobrescrever hotcues existentes.
         # Switch: Sobrescrever
         self.check_overwrite = ctk.CTkSwitch( # Alterado de CTkCheckBox para CTkSwitch
             self,
@@ -109,6 +126,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         )
         self.check_overwrite.pack(pady=10)
 
+        # Botão para listar as músicas e seus hotcues (lidos das tags MP3).
         # Botão de Listagem
         self.btn_list = ctk.CTkButton(
             self,
@@ -120,6 +138,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         )
         self.btn_list.pack(pady=(10, 0))
 
+        # Botão principal para iniciar a importação dos hotcues.
         # Botão de Ação
         self.btn_import = ctk.CTkButton(
             self,
@@ -131,19 +150,25 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         )
         self.btn_import.pack(pady=30)
 
+        # Barra de progresso para indicar o andamento da operação.
         # Barra de Progresso
         self.progress_bar = ctk.CTkProgressBar(self, width=500, height=12, progress_color="#3498DB", corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(pady=(0, 10))
         self.progress_bar.set(0)
 
-        # Status Label
-        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color="#3498DB")
-        self.lbl_status.pack(side="bottom", pady=20)
-
+        # Rodapé com informações do aplicativo (agora como o primeiro 'bottom', ficando na base)
         lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
 
+        # Label para exibir mensagens de status ao usuário.
+        # Status Label
+        self.lbl_status = ctk.CTkLabel(self, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12), text_color="#3498DB")
+        self.lbl_status.pack(side="bottom", pady=(0, 10))
+
     def carregar_playlists(self):
+        """
+        Carrega as playlists de todos os bancos de dados Engine DJ detectados e popula o ComboBox de playlists.
+        """
         if not self.found_databases:
             self.lbl_status.configure(text=self.txt.get("error_db", "Database error"), text_color="#FF5555")
             return
@@ -169,6 +194,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             self.lbl_db_auto.configure(text=f"✖ {self.txt.get('not_found', 'Não localizada')}", text_color="#FF5555")
 
     def atualizar_label_drives(self):
+        """
+        Atualiza o label que exibe os drives detectados, destacando aqueles que contêm a playlist selecionada.
+        """
         """Atualiza a visualização dos drives destacando onde a playlist selecionada está presente."""
         if not self.found_databases:
             self.lbl_db_auto.configure(text=f"✖ {self.txt.get('not_found', 'Não localizada')}", text_color="#FF5555")
@@ -190,6 +218,10 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.lbl_db_auto.configure(text=status_text, text_color="#00E5A3")
 
     def listar_musicas_hotcues(self):
+        """
+        Lista as músicas da playlist selecionada e seus hotcues lidos das tags MP3.
+        Abre uma nova janela para exibir o relatório detalhado.
+        """
         playlist_name = self.selected_playlist.get()
         if not playlist_name:
             messagebox.showwarning("Aviso", "Por favor, selecione uma playlist.")
@@ -293,36 +325,22 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         threading.Thread(target=task_list, daemon=True).start()
 
     def _abrir_janela_relatorio(self, playlist_name, content):
-        """Abre a janela de visualização com o conteúdo completo processado."""
-        viewer = ctk.CTkToplevel(self)
-        viewer.title(f"Músicas e Hotcues ({VERSAO_ATUAL}): {playlist_name}")
-        viewer.geometry("900x700")
-        viewer.transient(self)
-        viewer.grab_set()
-
-        # Configuração de Ícone para a nova janela
-        if os.path.exists(self.caminho_icone):
-            try:
-                if IS_WIN:
-                    viewer.iconbitmap(self.caminho_icone)
-                else:
-                    viewer.iconphoto(False, self._icon_photo)
-            except:
-                pass
-
-        lbl_header = ctk.CTkLabel(viewer, text=f"Conteúdo da Playlist: {playlist_name}", font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"))
-        lbl_header.pack(pady=10)
-
-        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
-        textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
-        
-        textbox.insert("end", content)
-        textbox.configure(state="disabled")
-
-        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
-        lbl_footer.pack(side="bottom", pady=(5, 10))
+        """
+        Abre uma nova janela para exibir o relatório detalhado das músicas e hotcues processados.
+        """
+        ReportWindow(
+            self,
+            title=f"Músicas e Hotcues: {playlist_name}",
+            header="CONTEÚDO DA PLAYLIST",
+            content=content,
+            playlist_name=playlist_name,
+            txt=self.txt
+        )
 
     def iniciar_importacao(self):
+        """
+        Inicia o processo de importação de hotcues das tags MP3 para o banco de dados do Engine DJ.
+        """
         # Verifica se o Engine DJ está aberto (mesma lógica e mensagens do Mirror Sync)
         if self.manager.engine_esta_aberto():
             messagebox.showwarning(
@@ -439,6 +457,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                         # 3. Mesclar de acordo com a regra
                         final_cues = []
                         has_changes = False
+                        self.manager.log(log_paths, f"  [AÇÃO] Mesclando Hotcues (Sobrescrever: {overwriting})", nivel="debug")
                         for slot in range(1, 9):
                             if overwriting:
                                 # Se marcado, Tag tem prioridade. Se Tag não tem, mantém Banco.
@@ -479,6 +498,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         threading.Thread(target=task, daemon=True).start()
 
     def finalizar_importacao(self, count):
+        """
+        Finaliza o processo de importação, atualiza a UI e exibe uma mensagem de sucesso.
+        """
         self.btn_import.configure(state="normal")
         self.btn_list.configure(state="normal")
         self.combo_playlist.configure(state="normal")

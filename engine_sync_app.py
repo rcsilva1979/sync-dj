@@ -45,16 +45,18 @@ def importar_scripts_hotcue():
     try:
         # Importar scripts diretamente da pasta raiz do projeto
         from le_json import read_mp3
-        from engine_hotcues import CueWrite, encode_quick_cues
+        from engine_hotcues import CueWrite, encode_quick_cues, parse_quick_cues
         from hotcue_normalizer import normalize_hotcues
-        return read_mp3, CueWrite, encode_quick_cues, normalize_hotcues, True
+        return read_mp3, CueWrite, encode_quick_cues, parse_quick_cues, normalize_hotcues, True
     except ImportError:
-        return None, None, None, None, False
+        return None, None, None, None, None, False
 
-read_mp3, CueWrite, encode_quick_cues, normalize_hotcues, _HOTCUE_DISPONIVEL = importar_scripts_hotcue()
+read_mp3, CueWrite, encode_quick_cues, parse_quick_cues, normalize_hotcues, _HOTCUE_DISPONIVEL = importar_scripts_hotcue()
 
 # ================= FUNÇÕES AUXILIARES ========================
+
 #COMPARA VERSAO ATUAL COM A VERSAO DO GITHUB (RETORNA TRUE SE A VERSAO DO GITHUB FOR MAIOR)
+
 def versao_maior(versao_nova: str, versao_atual: str) -> bool:
     """Retorna True somente se versao_nova for MAIOR que versao_atual."""
     def _parse(v: str):
@@ -66,6 +68,7 @@ def versao_maior(versao_nova: str, versao_atual: str) -> bool:
     return _parse(versao_nova) > _parse(versao_atual)
 
 #PEGA LINGUAGEM DO SISTEMA
+
 def get_system_lang():
     """Detecta o idioma do sistema e retorna o código correspondente."""
     # --- INICIO: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
@@ -89,6 +92,7 @@ def get_system_lang():
     return "en"
 
 #PEGA PASTA LOCAL DO APP (PY OU EXE)
+
 def get_resource_path(relative_path):
     """Retorna o caminho absoluto para recursos, compatível com PyInstaller."""
     try:
@@ -98,6 +102,7 @@ def get_resource_path(relative_path):
     return os.path.join(base_path, relative_path)
 
 #VERIFICA ATUALIZACAO
+
 def check_for_updates(current_version: str) -> str | None:
     """Verifica no GitHub se há uma nova versão disponível."""
     print(f"DEBUG: Checking for updates. Current version: {current_version}")
@@ -134,12 +139,10 @@ def check_for_updates(current_version: str) -> str | None:
     return None
 
 # ==============================================================
-
-
-
-
 # ================= DETECÇÃO DE HOTCUE ========================
+
 # Funções extraídas do engine_hotcues.py — sem dependência externa.
+
 
 import zlib as _zlib
 import struct as _struct
@@ -222,20 +225,28 @@ def _track_tem_hotcue_real(blob) -> bool:
 # ================= CURSOR COM LOG SQL ======================
 import time as _time
 
+# Classe para envolver o cursor do SQLite e registrar as operações SQL
 class LoggingCursor:
     """
     Wrapper sobre sqlite3.Cursor que registra SQLs no arquivo de log.
 
     Comportamento controlado pelas flags do app:
-      - log=True , debug=False  ->  grava INSERT / UPDATE / DELETE (sem parâmetros)
-      - log=True , debug=True   ->  grava TODOS os SQLs + parâmetros + tempo de execução
-      - log=False, debug=False  ->  não grava nada (transparente)
+    - log=True , debug=False  ->  grava INSERT / UPDATE / DELETE (sem parâmetros)
+    - log=True , debug=True   ->  grava TODOS os SQLs + parâmetros + tempo de execução
+    - log=False, debug=False  ->  não grava nada (transparente)
     """
 
     # Prefixos que são sempre gravados no modo LOG normal
     _DML_PREFIXES = ("INSERT", "UPDATE", "DELETE")
 
     def __init__(self, cursor, log_fn, log_path, debug: bool):
+        """
+        Inicializa o LoggingCursor.
+        :param cursor: O cursor original do sqlite3.
+        :param log_fn: A função de log a ser usada (geralmente self.log do SyncManager).
+        :param log_path: Uma tupla (log_file_path, debug_file_path) para os logs.
+        :param debug: Booleano indicando se o modo debug está ativo.
+        """
         self._cur = cursor
         self._log = log_fn        # self.log do EngineSyncApp
         self._log_path = log_path
@@ -244,20 +255,29 @@ class LoggingCursor:
     # ---- delegação de atributos do cursor original ----
     @property
     def lastrowid(self):
+        """Retorna o ID da última linha inserida."""
         return self._cur.lastrowid
 
     @property
     def rowcount(self):
+        """Retorna o número de linhas afetadas pela última operação."""
         return self._cur.rowcount
 
     def fetchone(self):
+        """Busca a próxima linha do resultado da consulta."""
         return self._cur.fetchone()
 
     def fetchall(self):
+        """Busca todas as linhas restantes do resultado da consulta."""
         return self._cur.fetchall()
 
     # ---- método principal ----
     def execute(self, sql, params=()):
+        """
+        Executa uma instrução SQL e registra a operação conforme as configurações de log.
+        :param sql: A instrução SQL a ser executada.
+        :param params: Os parâmetros para a instrução SQL.
+        """
         sql_upper = sql.strip().upper()
 
         if self._debug:
@@ -287,26 +307,36 @@ class LoggingCursor:
         return result
 
     def __iter__(self):
+        """Permite que o cursor seja iterado."""
         return iter(self._cur)
 # ==========================================================
 
+# Classe principal para gerenciar a sincronização do Engine DJ
 class SyncManager:
+    """
+    Gerencia as operações de sincronização, configuração e logging para o aplicativo.
+    """
     def __init__(self):
+        """
+        Inicializa o SyncManager, carregando configurações e definindo o diretório base.
+        """
         self.base_dir = get_base_dir()
         self.config_file = os.path.join(self.base_dir, "engine_sync_config.json")
         self.config = self.load_config()
         self.cancel_requested = False
 
     def load_config(self):
+        """Carrega as configurações do arquivo JSON."""
         if not os.path.exists(self.config_file): return {}
         try:
             with open(self.config_file, "r") as f: return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError): return {}
 
     def localizar_bancos_dados(self):
+        """Localiza todos os bancos de dados Engine DJ no sistema."""
         return localizar_bancos_dados_engine()
 
-    def save_config(self, data):
+    def save_config(self, data): # type: ignore
         self.config.update(data)
         # Filtra opções que o usuário pediu para não persistir no arquivo JSON
         excluir = {"importar_hotcue", "sobrescrever_hotcue", "remover_orfas"}
@@ -317,6 +347,7 @@ class SyncManager:
         except Exception: pass
 
     def engine_esta_aberto(self):
+        """Verifica se o processo do Engine DJ está em execução."""
         try:
             if IS_WIN:
                 resultado = subprocess.check_output("tasklist", shell=True, text=True).lower()
@@ -330,6 +361,7 @@ class SyncManager:
         return False
 
     def _get_vol_id(self, path):
+        """Retorna o identificador do volume/drive de um dado caminho."""
         """Helper para identificar o 'Drive' no Win ou 'Volume' no Mac."""
         if not path: return ""
         abs_p = os.path.abspath(path)
@@ -341,11 +373,12 @@ class SyncManager:
             return p[2] if len(p) > 2 and p[1] == 'Volumes' else 'System'
 
     def formatar_caminho_engine(self, caminho_arquivo, caminho_db):
+        """Formata o caminho de um arquivo para o formato relativo esperado pelo Engine DJ."""
         engine_library_dir = os.path.dirname(os.path.dirname(os.path.abspath(caminho_db)))
         arquivo_abs = os.path.abspath(caminho_arquivo)
         return os.path.relpath(arquivo_abs, engine_library_dir).replace("\\", "/")
 
-    def iniciar_log(self, pasta, db_path, nome_colecao, ativo_log, ativo_debug, tool_name="SYNC"):
+    def iniciar_log(self, pasta, db_path, nome_colecao, ativo_log, ativo_debug, tool_name="SYNC"): # type: ignore
         if not ativo_log and not ativo_debug: return None, None
         
         log_dir = os.path.join(self.base_dir, "Reports")
@@ -367,6 +400,7 @@ class SyncManager:
         return (_criar_arquivo("LOG") if ativo_log else None, _criar_arquivo("DEBUG") if ativo_debug else None)
 
     def log(self, caminhos, mensagem, nivel="log"):
+        """Escreve uma mensagem nos arquivos de log (log e/ou debug)."""
         if not caminhos: return
         log_path, debug_path = caminhos if isinstance(caminhos, tuple) else (caminhos, None)
         linha = f"[{datetime.now().strftime('%H:%M:%S')}] {mensagem}\n"
@@ -378,6 +412,7 @@ class SyncManager:
         except: pass
 
     def criar_cursor_log(self, conn, caminhos):
+        """Cria um cursor de banco de dados, envolvendo-o com o LoggingCursor se o log estiver ativo."""
         raw = conn.cursor()
         if not caminhos or (caminhos[0] is None and caminhos[1] is None): return raw
         return LoggingCursor(cursor=raw, log_fn=self.log, log_path=caminhos, debug=self.config.get("debug", False))
@@ -391,24 +426,42 @@ class SyncManager:
 
     def _importar_hotcue_track(self, cursor, caminho_completo, track_id, log_paths, modo_sobrescrever, progress_callback):
         try:
-            if not modo_sobrescrever:
-                cursor.execute("SELECT quickCues FROM PerformanceData WHERE trackId = ? LIMIT 1", (track_id,))
-                row_pd = cursor.fetchone()
-                if _track_tem_hotcue_real(row_pd[0] if row_pd else None): return
+            cursor.execute("SELECT quickCues FROM PerformanceData WHERE trackId = ? LIMIT 1", (track_id,))
+            row_pd = cursor.fetchone()
+            existing_blob = row_pd[0] if row_pd else None
+
+            if not modo_sobrescrever and _track_tem_hotcue_real(existing_blob):
+                return
+
+            # Loga Hotcues atuais do Banco (Debug)
+            if existing_blob:
+                db_cues = parse_quick_cues(existing_blob)
+                if db_cues:
+                    self.log(log_paths, f"  [DEBUG-BANCO] Hotcues atuais (ID {track_id}):", nivel="debug")
+                    for dc in db_cues:
+                        self.log(log_paths, f"    ↳ Slot {dc.cue_number}: '{dc.label}' em {self.format_time(dc.position_seconds)}", nivel="debug")
+
             progress_callback(STRINGS[get_system_lang()]["status_hotcue"].format(filename=os.path.basename(caminho_completo)), None)
             dados_mp3 = read_mp3(_Path(caminho_completo))
-            hotcues = normalize_hotcues(dados_mp3.get("hotcues", []))
-            cues = [CueWrite(cue_number=int(hc["num"]), label=hc.get("name") or f"Cue {hc['num']}", position_seconds=float(hc["pos_seconds"]))
-                    for hc in hotcues if hc.get("pos_seconds") is not None and str(hc.get("num", "")).isdigit() and 1 <= int(hc["num"]) <= 8]
-            if not cues: return
-            blob = encode_quick_cues(cues, sample_rate=44100.0)
+            tag_hotcues = normalize_hotcues(dados_mp3.get("hotcues", []))
+
+            if tag_hotcues:
+                self.log(log_paths, "  [DEBUG-ARQUIVO] Hotcues detectados na Tag MP3:", nivel="debug")
+                for tc in tag_hotcues:
+                    self.log(log_paths, f"    ↳ Slot {tc.get('num')}: '{tc.get('name')}' em {tc.get('time')}", nivel="debug")
+
+            cues_to_write = [CueWrite(cue_number=int(hc["num"]), label=hc.get("name") or f"Cue {hc['num']}", position_seconds=float(hc["pos_seconds"]))
+                    for hc in tag_hotcues if hc.get("pos_seconds") is not None and str(hc.get("num", "")).isdigit() and 1 <= int(hc["num"]) <= 8]
+            if not cues_to_write: return
+            blob = encode_quick_cues(cues_to_write, existing_blob=existing_blob, sample_rate=44100.0)
             cursor.execute("INSERT INTO PerformanceData (trackId, quickCues) VALUES (?, ?) ON CONFLICT(trackId) DO UPDATE SET quickCues = excluded.quickCues", (track_id, sqlite3.Binary(blob)))
             self.log(log_paths, f"  [HOTCUE {'Sobrescrito' if modo_sobrescrever else 'Importado'}] id={track_id} | {os.path.basename(caminho_completo)}")
-            for c in cues:
+            for c in cues_to_write:
                 self.log(log_paths, f"    ↳ Cue {c.cue_number}: '{c.label}' em {self.format_time(c.position_seconds)}")
         except Exception as e: self.log(log_paths, f"    [HOTCUE] ERRO em {os.path.basename(caminho_completo)}: {e}")
 
     def verificar_tracks_faltantes_na_pasta(self, cursor, pasta_base, db_path, log_paths):
+        """Verifica e remove (se configurado) tracks do banco de dados que não existem mais na pasta de músicas."""
         self.log(log_paths, f"--- VERIFICACAO: Tracks faltantes na pasta [{os.path.normpath(pasta_base)}] ---")
         engine_library_dir = os.path.dirname(os.path.dirname(os.path.abspath(db_path)))
         
@@ -458,6 +511,9 @@ class SyncManager:
         return removidas_count
 
     def motor_sincronizacao(self, ui_strings, progress_callback):
+        """
+        Executa o processo principal de sincronização de músicas e playlists.
+        """
         self.cancel_requested = False
         pasta = self.config.get("pasta_musicas", "")
         db_path = self.config.get("path_db", "")

@@ -62,10 +62,10 @@ class CSVToVDJConverter(ctk.CTk):
         lbl_csv = ctk.CTkLabel(frame, text="Arquivo CSV do Engine DJ:", font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_csv.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
         
-        entry_csv = ctk.CTkEntry(frame, textvariable=self.csv_path, width=400, corner_radius=CORNER_RADIUS_NONE)
+        entry_csv = ctk.CTkEntry(frame, textvariable=self.csv_path, width=400, corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY))
         entry_csv.grid(row=1, column=0, padx=10, pady=5)
         
-        btn_csv = ctk.CTkButton(frame, text="Procurar", width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE, command=self.select_csv)
+        btn_csv = ctk.CTkButton(frame, text="Procurar", width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), command=self.select_csv)
         btn_csv.grid(row=1, column=1, padx=10, pady=5)
 
         # Log de status

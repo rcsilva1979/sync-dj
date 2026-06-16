@@ -3,6 +3,7 @@ import sqlite3
 import string
 from constants import IS_WIN, IS_MAC
  
+# Função para obter os títulos das playlists de um banco de dados Engine DJ
 def get_playlists_from_db(db_path):
     """Retorna lista de títulos de playlists do banco de dados Engine DJ."""
     if not db_path or not os.path.exists(db_path):
@@ -17,6 +18,7 @@ def get_playlists_from_db(db_path):
     except Exception:
         return []
  
+# Função para obter detalhes das faixas de uma playlist específica por nome
 def get_tracks_from_playlist(db_path, playlist_name):
     """
     Retorna uma lista de dicionários com os detalhes das faixas de uma playlist específica.
@@ -40,6 +42,7 @@ def get_tracks_from_playlist(db_path, playlist_name):
         print(f"Erro ao obter faixas da playlist '{playlist_name}': {e}")
     return tracks_info
 
+# Função para obter detalhes das faixas de uma playlist específica por ID
 def get_tracks_by_playlist_id(db_path, playlist_id):
     """
     Retorna uma lista de dicionários com os detalhes das faixas de uma playlist específica por ID.
@@ -106,6 +109,7 @@ def get_tracks_by_playlist_id(db_path, playlist_id):
         print(f"Erro ao obter faixas da playlist ID '{playlist_id}': {e}")
     return tracks_info
 
+# Função para obter o UUID de um banco de dados Engine DJ
 def get_database_uuid(db_path):
     """Retorna o UUID do banco de dados Engine DJ a partir da tabela Information."""
     if not db_path or not os.path.exists(db_path):
@@ -118,6 +122,7 @@ def get_database_uuid(db_path):
     except Exception:
         return None
 
+# Função para obter todas as playlists de forma hierárquica
 def get_all_playlists_hierarchical(db_path):
     """
     Retorna uma lista de strings, onde cada string é o caminho hierárquico completo
@@ -165,6 +170,7 @@ def get_all_playlists_hierarchical(db_path):
         print(f"Erro ao obter playlists com caminhos hierárquicos: {e}")
         return []
 
+# Função para localizar bancos de dados Engine DJ em locais padrão
 def localizar_bancos_dados_engine():
     """
     Busca o banco de dados m.db em locais padrão (Pasta Música) e na raiz de discos fixos (D:, E:, etc).
@@ -210,6 +216,7 @@ def localizar_bancos_dados_engine():
 
     return encontrados
 
+# Função para atualizar o caminho de uma faixa no banco de dados
 def update_track_path(db_path, track_id, new_path):
     """Atualiza o caminho de uma música no banco de dados Engine DJ."""
     try:
@@ -221,6 +228,7 @@ def update_track_path(db_path, track_id, new_path):
     except Exception:
         return False
 
+# Função para obter o ID de uma faixa pelo seu caminho relativo
 def get_track_id_by_path(db_path, rel_path):
     """Busca o ID de uma música através do seu caminho relativo."""
     try:
@@ -231,6 +239,7 @@ def get_track_id_by_path(db_path, rel_path):
     except Exception:
         return None
 
+# Função para atualizar o trackId vinculado a uma entrada de playlist
 def update_playlist_entry_track(db_path, entry_id, new_track_id):
     """Altera o trackId vinculado a uma entrada específica da playlist (PlaylistEntity)."""
     try:

@@ -13,6 +13,9 @@ sys.stdout.reconfigure(encoding='utf-8')
 # -----------------------------
 # ARGUMENTOS
 # -----------------------------
+"""
+Função para analisar os argumentos da linha de comando.
+"""
 def parse_args():
     parser = argparse.ArgumentParser(description="Sync Engine DJ playlists tree")
     parser.add_argument("--db", required=True)
@@ -25,6 +28,9 @@ def parse_args():
 # -----------------------------
 # CONEXÃO
 # -----------------------------
+"""
+Função para estabelecer a conexão com o banco de dados SQLite.
+"""
 def connect(db_path, apply):
     if apply:
         con = sqlite3.connect(db_path)
@@ -38,6 +44,9 @@ def connect(db_path, apply):
 # -----------------------------
 # PLAYLIST TREE
 # -----------------------------
+"""
+Carrega os nós das playlists do banco de dados.
+"""
 def load_nodes(con):
     rows = con.execute("""
     SELECT
@@ -58,18 +67,15 @@ def load_nodes(con):
     return nodes, children
 
 
+"""
+Constrói o caminho completo de uma playlist a partir de seu ID.
+"""
 def build_path(node_id, nodes):
     parts = []
     current = nodes.get(node_id)
 
     while current:
         title = current["title"]
-
-        #!print(
-           #! f"DEBUG PLAYLIST ID={current['id']} " ############### comentado
-           #! f"TITLE={repr(title)}" ############### comentado
-        #!)
-
         parts.append(title.strip())
 
         current = nodes.get(current["parentListId"])
@@ -77,6 +83,9 @@ def build_path(node_id, nodes):
     return " / ".join(reversed(parts))
 
 
+"""
+Encontra o ID de uma playlist raiz pelo seu nome.
+"""
 def find_root_playlist(con, target):
     nodes, _ = load_nodes(con)
 
@@ -90,6 +99,9 @@ def find_root_playlist(con, target):
 # -----------------------------
 # TRACKS
 # -----------------------------
+"""
+Obtém as faixas de uma playlist específica do Engine DJ.
+"""
 def get_engine_tracks(con, playlist_id):
     rows = con.execute("""
         SELECT t.id, t.path
@@ -107,6 +119,9 @@ def get_engine_tracks(con, playlist_id):
     return data
 
 
+"""
+Obtém os arquivos de áudio de uma pasta no disco.
+"""
 def get_disk_files(folder):
 
     AUDIO_EXTENSIONS = {
@@ -137,13 +152,22 @@ def get_disk_files(folder):
     return files
 
 
+"""
+Converte um caminho de arquivo para o formato esperado pelo Engine DJ.
+"""
 def to_engine_path(file_path):
     return str(file_path.resolve()).replace("\\", "/")
 
 
+"""
+Obtém o UUID do banco de dados.
+"""
 def get_uuid(con):
     return con.execute("SELECT uuid FROM Information LIMIT 1").fetchone()[0]
 
+"""
+Encontra o ID de uma faixa pelo seu caminho no banco de dados.
+"""
 def find_track_by_path(con, file_path):
     engine_path = str(file_path.resolve()).replace("\\", "/")
 
@@ -162,6 +186,9 @@ def find_track_by_path(con, file_path):
 # -----------------------------
 # INSERT
 # -----------------------------
+"""
+Insere uma nova faixa no banco de dados do Engine DJ.
+"""
 def insert_track(con, file_path, engine_path):
     stat = file_path.stat()
     now = int(time.time())
@@ -185,6 +212,9 @@ def insert_track(con, file_path, engine_path):
     return con.execute("SELECT last_insert_rowid()").fetchone()[0]
 
 
+"""
+Adiciona uma faixa a uma playlist no banco de dados do Engine DJ.
+"""
 def add_to_playlist(con, playlist_id, track_id, uuid):
     tail = con.execute("""
         SELECT id FROM PlaylistEntity
@@ -207,6 +237,9 @@ def add_to_playlist(con, playlist_id, track_id, uuid):
 # -----------------------------
 # PROCESSAR ÁRVORE
 # -----------------------------
+"""
+Converte o caminho de uma playlist para um caminho de pasta no sistema de arquivos.
+"""
 def playlist_path_to_folder(base_folder, playlist_path, root_name):
     parts = [p.strip() for p in playlist_path.split("/")]
 
@@ -219,6 +252,9 @@ def playlist_path_to_folder(base_folder, playlist_path, root_name):
     return base_folder.joinpath(*parts)
 
 
+"""
+Processa uma playlist e suas subpastas, sincronizando as faixas com o banco de dados.
+"""
 def process_playlist(
         con,
         playlist_id,
@@ -307,6 +343,9 @@ def process_playlist(
         )
         
 
+"""
+Cria um backup do banco de dados do Engine DJ.
+"""
 def create_backup(db_path):
 
     db_folder = Path(db_path).parent
@@ -335,6 +374,9 @@ def create_backup(db_path):
 # -----------------------------
 # MAIN
 # -----------------------------
+"""
+Função principal para executar a sincronização da árvore de playlists.
+"""
 def main():
     args = parse_args()
     

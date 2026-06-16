@@ -26,17 +26,26 @@ from engine_sync_app import (
     SyncManager, get_system_lang, get_resource_path, 
     _HOTCUE_DISPONIVEL
 )
+from report_gui import ReportWindow
 
 # ================= INTERFACE GRÁFICA =================
 ctk.set_appearance_mode("Dark")
 
 class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
+    """
+    Classe principal da interface gráfica para a ferramenta Engine DJ Sync.
+    Gerencia a sincronização de pastas de música com o banco de dados do Engine DJ,
+    incluindo backup, importação de hotcues e remoção de músicas órfãs.
+    """
     def __init__(self, master, txt_strings): # Adicionados master e txt_strings
+        """
+        Inicializa a janela principal do aplicativo.
+        """
         super().__init__(master) # Passa o master para o construtor da classe pai
         
         self.txt = txt_strings # Usa as strings passadas
         
-        self.title(f"{self.txt['title']} ({VERSAO_ATUAL})") # Adiciona a versão no título da janela
+        self.title(f"{self.txt['title']} ({VERSAO_ATUAL})") # Define o título da janela com a versão atual
         self.geometry("700x650")  # Altura aumentada para todos os elementos ficarem visíveis
         self.resizable(False, False)
 
@@ -46,6 +55,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         
         self.configure(fg_color=COLOR_BG_DARK)
         
+        # Configuração do AppUserModelID para Windows (ícone na barra de tarefas)
         if os.name == 'nt':
             try:
                 import ctypes
@@ -54,6 +64,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             except Exception:
                 pass
 
+        # Carrega e aplica o ícone da janela
         # Configuração de Ícone
         self.caminho_icone = get_resource_path(os.path.join("images", "sync_icon.ico"))
         if os.path.exists(self.caminho_icone):
@@ -100,6 +111,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.after(1000, lambda: PopUpAtualizacao(self, self.txt, versao_github))
 
     def construir_ui(self):
+        """
+        Cria e organiza todos os elementos da interface gráfica da janela principal.
+        """
         img_carregada = False
         try:
             img_caminho = get_resource_path(os.path.join("images", "logo_engine.png"))
@@ -116,69 +130,82 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             
         lbl_titulo.pack(pady=(25, 5))
 
-        # Frame principal para as configurações
+        # Frame principal para agrupar os controles de configuração
         frame_config = ctk.CTkFrame(self, fg_color="transparent")
         frame_config.pack(padx=30, pady=(10, 8), fill="x")
 
         # Pasta de Músicas
-        lbl_pasta = ctk.CTkLabel(frame_config, text=self.txt["music_folder"], font=ctk.CTkFont(family="Consolas", weight="bold"))
+        # Label e campo de entrada para o caminho da pasta de músicas
+        lbl_pasta = ctk.CTkLabel(frame_config, text=self.txt["music_folder"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_pasta.pack(padx=(25, 0), pady=(10, 2), anchor="w")
         
+        # Frame para agrupar o campo de entrada e o botão de procurar pasta
         frame_pasta_browse = ctk.CTkFrame(frame_config, fg_color="transparent")
         frame_pasta_browse.pack(padx=25, pady=(0, 8), fill="x")
 
-        entry_pasta = ctk.CTkEntry(frame_pasta_browse, textvariable=self.path_musicas, width=400, corner_radius=0)
+        # Campo de entrada para o caminho da pasta de músicas
+        entry_pasta = ctk.CTkEntry(frame_pasta_browse, textvariable=self.path_musicas, width=400, corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY))
         entry_pasta.pack(side="left", fill="x", expand=True, padx=(0, 5))
         
-        btn_pasta = ctk.CTkButton(frame_pasta_browse, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(family="Consolas", weight="bold"), corner_radius=0, command=self.procurar_pasta)
+        # Botão para abrir o diálogo de seleção de pasta
+        btn_pasta = ctk.CTkButton(frame_pasta_browse, text=self.txt["browse"], width=100, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), corner_radius=CORNER_RADIUS_NONE, command=self.procurar_pasta)
         btn_pasta.pack(side="right", padx=(0, 0))
 
         # Label Informativo de Banco de Dados Detectado (Substitui a seleção manual)
-        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(family="Consolas", size=12, weight="bold"), text_color="#AAAAAA")
+        # Exibe o status da detecção automática do banco de dados
+        self.lbl_db_auto = ctk.CTkLabel(frame_config, text="", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"), text_color="#AAAAAA")
         self.lbl_db_auto.pack(padx=(25, 0), pady=(2, 10), anchor="w")
 
         # Seleção de Playlist
-        lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(family="Consolas", weight="bold"))
+        # Label para a seleção da playlist raiz
+        lbl_playlist = ctk.CTkLabel(frame_config, text=self.txt["playlist"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"))
         lbl_playlist.pack(padx=(25, 0), pady=(0, 2), anchor="w")
 
-        self.combo_playlist = ctk.CTkComboBox(frame_config, width=400, command=self.on_playlist_changed, corner_radius=0)
+        # ComboBox para selecionar a playlist raiz
+        self.combo_playlist = ctk.CTkComboBox(frame_config, width=400, command=self.on_playlist_changed, corner_radius=0, font=ctk.CTkFont(family=FONT_FAMILY))
         self.combo_playlist.pack(padx=(25, 0), pady=(0, 10), anchor="w")
 
         # Switches de Configuração
-        self.check_backup = ctk.CTkSwitch(frame_config, text=self.txt["backup"], variable=self.fazer_backup, font=ctk.CTkFont(family="Consolas", weight="bold"), fg_color="#555555", progress_color="#00E5A3", command=self.salvar_config_ui)
+        self.check_backup = ctk.CTkSwitch(frame_config, text=self.txt["backup"], variable=self.fazer_backup, font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), fg_color="#555555", progress_color="#00E5A3", command=self.salvar_config_ui)
         self.check_backup.pack(padx=(25, 0), pady=(0, 4), anchor="w")
 
+        # Switch para importar hotcues (habilitado apenas se a funcionalidade estiver disponível)
         estado_hotcue = "normal" if _HOTCUE_DISPONIVEL else "disabled"
-        self.check_hotcue = ctk.CTkSwitch(frame_config, text=self.txt["hotcue"], variable=self.importar_hotcue, font=ctk.CTkFont(family="Consolas", weight="bold"), fg_color="#555555", progress_color="#00E5A3", state=estado_hotcue, command=self._toggle_hotcue)
+        self.check_hotcue = ctk.CTkSwitch(frame_config, text=self.txt["hotcue"], variable=self.importar_hotcue, font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), fg_color="#555555", progress_color="#00E5A3", state=estado_hotcue, command=self._toggle_hotcue)
         self.check_hotcue.pack(padx=(25, 0), pady=(0, 2), anchor="w")
 
+        # Switch para sobrescrever hotcues existentes (depende do switch de importar hotcues)
         estado_overwrite = "normal" if (_HOTCUE_DISPONIVEL and self.importar_hotcue.get()) else "disabled"
         self.check_hotcue_overwrite = ctk.CTkSwitch(
             frame_config, text=self.txt["hotcue_overwrite"], variable=self.sobrescrever_hotcue,
-            font=ctk.CTkFont(family="Consolas", size=12), fg_color="#555555", progress_color="#00E5A3",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12), fg_color="#555555", progress_color="#00E5A3",
             state=estado_overwrite, command=self.salvar_config_ui)
         self.check_hotcue_overwrite.pack(padx=(40, 0), pady=(0, 8), anchor="w")
-        
+        # Switch para remover músicas órfãs
         self.check_orfas = ctk.CTkSwitch(
             frame_config, text=self.txt["remover_orfas"], variable=self.remover_orfas,
-            font=ctk.CTkFont(family="Consolas", weight="bold"), fg_color="#555555", progress_color="#00E5A3",
+            font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"), fg_color="#555555", progress_color="#00E5A3",
             command=self.salvar_config_ui)
         self.check_orfas.pack(padx=(25, 0), pady=(0, 10), anchor="w")
 
-        self.lbl_status = ctk.CTkLabel(self, textvariable=self.status_var, font=ctk.CTkFont(family="Consolas", size=14))
+        # Label para exibir o status atual da operação
+        self.lbl_status = ctk.CTkLabel(self, textvariable=self.status_var, font=ctk.CTkFont(family=FONT_FAMILY, size=14))
         self.lbl_status.pack(pady=(8, 3), fill="x", padx=30)
 
+        # Barra de progresso
         self.progress_bar = ctk.CTkProgressBar(self, width=620, height=12, progress_color="#00E5A3", corner_radius=0)
         self.progress_bar.pack(pady=4)
         self.progress_bar.set(0)
 
-        self.btn_sync = ctk.CTkButton(self, text=self.txt["sync_btn"], font=ctk.CTkFont(family="Consolas", size=16, weight="bold"), 
-                                      height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=0,
+        # Botão para iniciar a sincronização
+        self.btn_sync = ctk.CTkButton(self, text=self.txt["sync_btn"], font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), 
+                                      height=45, fg_color="#00E5A3", text_color="#000000", hover_color="#00b37e", corner_radius=CORNER_RADIUS_NONE,
                                       state="disabled", command=self.iniciar_sincronizacao)
         self.btn_sync.pack(pady=(10, 6), fill="x", padx=60)
 
-        self.btn_cancel = ctk.CTkButton(self, text=self.txt.get("cancel_btn", "Cancelar"), font=ctk.CTkFont(family="Consolas", size=14, weight="bold"), 
-                                        height=35, fg_color="#CC3333", text_color="#FFFFFF", hover_color="#AA2222", corner_radius=0,
+        # Botão para cancelar a sincronização
+        self.btn_cancel = ctk.CTkButton(self, text=self.txt.get("cancel_btn", "Cancelar"), font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), 
+                                        height=35, fg_color="#CC3333", text_color="#FFFFFF", hover_color="#AA2222", corner_radius=CORNER_RADIUS_NONE,
                                         state="disabled", command=self.cancelar_sincronizacao)
         self.btn_cancel.pack(pady=(0, 6), fill="x", padx=60)
 
@@ -187,9 +214,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         #                                 hover=False, cursor="hand2", command=self.abrir_link_doacao)
         # self.btn_doacao.pack(pady=(4, 6))
 
+        # Rodapé com informações do aplicativo
         lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
-
     def detectar_banco_por_drive(self):
         """Localiza o m.db automaticamente no mesmo disco da pasta de músicas."""
         pasta = self.path_musicas.get()
@@ -271,6 +298,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.salvar_config_ui()
 
     def _limpar_nome_playlist(self, nome):
+        """
+        Remove sufixos de criação de forma robusta, preservando o nome base original (incluindo prefixos como '-').
+        """
         """Remove sufixos de criação de forma robusta, preservando o nome base original (incluindo prefixos como '-')."""
         if not nome: return ""
         res = nome
@@ -284,6 +314,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         return res.strip()
 
     def procurar_pasta(self):
+        """
+        Abre um diálogo para o usuário selecionar a pasta de músicas e atualiza a UI.
+        """
         pasta = filedialog.askdirectory()
         if pasta:
             self.path_musicas.set(pasta)
@@ -292,6 +325,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.carregar_playlists() 
 
     def procurar_db(self):
+        """
+        Abre um diálogo para o usuário selecionar o arquivo m.db e atualiza a UI.
+        """
         arquivo = filedialog.askopenfilename(filetypes=[("Engine DB", "*.db")])
         if arquivo:
             arquivo_norm = os.path.normpath(arquivo)
@@ -309,6 +345,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.carregar_playlists()
 
     def carregar_playlists(self):
+        """
+        Carrega as playlists do banco de dados selecionado e popula o ComboBox de playlists.
+        """
         db_path = self.path_db.get()
         pasta_atual = self.path_musicas.get()
         
@@ -404,6 +443,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
                 self.combo_playlist.set(display_options[0])
 
     def on_playlist_changed(self, choice):
+        """
+        Acionado quando o usuário altera manualmente a playlist no ComboBox.
+        """
         """Acionado quando o usuário altera manualmente a playlist no ComboBox."""
         cleaned_choice = self._limpar_nome_playlist(choice)
 
@@ -425,6 +467,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.salvar_config_ui()
 
     def salvar_config_ui(self):
+        """
+        Salva as configurações atuais da UI no objeto de configuração do manager e no arquivo.
+        """
         # Limpa o nome da playlist antes de salvar (remove sufixo e traço)
         playlist_alvo = self._limpar_nome_playlist(self.combo_playlist.get())
 
@@ -445,12 +490,18 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.manager.save_config(config_data)
     
     def cancelar_sincronizacao(self):
+        """
+        Solicita o cancelamento da sincronização e exibe uma mensagem de confirmação.
+        """
         if messagebox.askyesno(self.txt.get("cancel_title", "Confirmar"), 
                                self.txt.get("cancel_msg", "Deseja cancelar?")):
             self.manager.cancel_requested = True
             self.btn_cancel.configure(state="disabled")
 
     def iniciar_sincronizacao(self):
+        """
+        Inicia o processo de sincronização em uma thread separada.
+        """
         if self.manager.engine_esta_aberto():
             messagebox.showwarning(
                 "Engine DJ em execução",
@@ -491,6 +542,9 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         threading.Thread(target=thread_sync, daemon=True).start()
 
     def finalizar_sync(self, novas_musicas, apagadas_musicas, relatorio):
+        """
+        Finaliza o processo de sincronização, atualiza a UI e exibe o relatório.
+        """
         self.btn_sync.configure(state="normal")
         self.btn_cancel.configure(state="disabled")
 
@@ -509,33 +563,15 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self._abrir_janela_relatorio(self.combo_playlist.get(), relatorio)
 
     def _abrir_janela_relatorio(self, playlist_name, content):
-        """Abre a janela de visualização com o relatório completo da sincronização."""
-        viewer = ctk.CTkToplevel(self)
+        """
+        Abre uma nova janela para exibir o relatório detalhado da sincronização.
+        """
         nome_limpo = self._limpar_nome_playlist(playlist_name)
-        viewer.title(f"Relatório Mirror Sync ({VERSAO_ATUAL}): {nome_limpo}")
-        viewer.geometry("900x700")
-        viewer.transient(self)
-        viewer.grab_set()
-
-        # Configuração de Ícone para a nova janela
-        if os.path.exists(self.caminho_icone):
-            try:
-                if IS_WIN:
-                    viewer.iconbitmap(self.caminho_icone)
-                else:
-                    viewer.iconphoto(False, self._icon_photo)
-            except:
-                pass
-
-        lbl_header = ctk.CTkLabel(viewer, text=f"RELATÓRIO DE SINCRONIZAÇÃO\nPlaylist: {nome_limpo}", font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"))
-        lbl_header.pack(pady=10)
-
-        textbox = ctk.CTkTextbox(viewer, width=860, height=600, font=ctk.CTkFont(family=FONT_FAMILY, size=11))
-        textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
-        
-        textbox.insert("end", content)
-        textbox.configure(state="disabled")
-
-        viewer.configure(fg_color=COLOR_BG_DARK)
-        lbl_footer = ctk.CTkLabel(viewer, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
-        lbl_footer.pack(side="bottom", pady=(5, 10))
+        ReportWindow(
+            self,
+            title=f"Relatório Mirror Sync: {nome_limpo}",
+            header="RELATÓRIO DE SINCRONIZAÇÃO",
+            content=content,
+            playlist_name=nome_limpo,
+            txt=self.txt
+        )

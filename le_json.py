@@ -35,6 +35,9 @@ HOTCUE_WORDS = (
 
 @dataclass
 class Id3Frame:
+    """
+    Representa um frame ID3v2, contendo seu ID, tamanho, flags, dados e offset.
+    """
     frame_id: str
     size: int
     flags: bytes
@@ -43,6 +46,9 @@ class Id3Frame:
 
 
 def synchsafe_to_int(raw: bytes) -> int:
+    """
+    Converte um inteiro "synchsafe" (usado em ID3v2.3 e ID3v2.4) para um inteiro normal.
+    """
     value = 0
     for byte in raw:
         value = (value << 7) | (byte & 0x7F)
@@ -50,14 +56,23 @@ def synchsafe_to_int(raw: bytes) -> int:
 
 
 def int24(raw: bytes) -> int:
+    """
+    Converte 3 bytes em um inteiro de 24 bits.
+    """
     return (raw[0] << 16) | (raw[1] << 8) | raw[2]
 
 
 def remove_unsynchronisation(data: bytes) -> bytes:
+    """
+    Remove bytes de "dessincronização" (0xFF 0x00) dos dados, conforme especificado em ID3v2.
+    """
     return data.replace(b"\xff\x00", b"\xff")
 
 
 def decode_text_payload(data: bytes) -> str:
+    """
+    Decodifica o payload de texto de um frame ID3, considerando diferentes codificações.
+    """
     if not data:
         return ""
 
@@ -76,6 +91,9 @@ def decode_text_payload(data: bytes) -> str:
 
 
 def split_encoded_pair(data: bytes) -> tuple[str, str]:
+    """
+    Divide um payload de texto codificado em dois, usando o separador nulo apropriado para a codificação.
+    """
     if not data:
         return "", ""
 
@@ -90,11 +108,18 @@ def split_encoded_pair(data: bytes) -> tuple[str, str]:
 
 
 def split_latin1_pair(data: bytes) -> tuple[str, bytes]:
+    """
+    Divide um payload de bytes em duas partes, usando o primeiro byte nulo como separador,
+    decodificando a primeira parte como latin-1.
+    """
     left, _, right = data.partition(b"\x00")
     return left.decode("latin-1", errors="replace"), right
 
 
 def parse_id3_frames(path: Path) -> tuple[dict[str, Any], list[Id3Frame]]:
+    """
+    Analisa um arquivo MP3 para extrair o cabeçalho ID3v2 e todos os seus frames.
+    """
     with path.open("rb") as handle:
         header = handle.read(10)
         if len(header) < 10 or header[:3] != b"ID3":
@@ -161,6 +186,9 @@ def parse_id3_frames(path: Path) -> tuple[dict[str, Any], list[Id3Frame]]:
 
 
 def parse_frame(frame: Id3Frame) -> dict[str, Any]:
+    """
+    Analisa os dados de um frame ID3 específico e retorna um dicionário com suas propriedades.
+    """
     item: dict[str, Any] = {
         "id": frame.frame_id,
         "size": frame.size,
@@ -193,6 +221,9 @@ def parse_frame(frame: Id3Frame) -> dict[str, Any]:
 
 
 def parse_geob(data: bytes) -> dict[str, Any]:
+    """
+    Analisa os dados de um frame GEOB (General Encapsulated Object) e extrai suas propriedades.
+    """
     if not data:
         return {"mime": "", "filename": "", "description": "", "payload": describe_binary(b"")}
 
@@ -217,6 +248,9 @@ def parse_geob(data: bytes) -> dict[str, Any]:
 
 
 def describe_binary(data: bytes) -> dict[str, Any]:
+    """
+    Descreve um blob de dados binários, incluindo seu tamanho e uma representação em base64.
+    """
     text = printable_text(data)
     result: dict[str, Any] = {
         "size": len(data),
@@ -228,6 +262,9 @@ def describe_binary(data: bytes) -> dict[str, Any]:
 
 
 def printable_text(data: bytes) -> str:
+    """
+    Tenta decodificar um blob de bytes em uma string legível, testando diferentes codificações.
+    """
     if not data:
         return ""
 
@@ -244,11 +281,18 @@ def printable_text(data: bytes) -> str:
 
 
 def is_hotcue_candidate(item: dict[str, Any]) -> bool:
+    """
+    Verifica se um item (frame ID3) é um candidato a conter informações de hotcue,
+    procurando por palavras-chave relacionadas.
+    """
     haystack = json.dumps(item, ensure_ascii=False).lower()
     return any(word in haystack for word in HOTCUE_WORDS)
 
 
 def enrich_candidate(item: dict[str, Any]) -> dict[str, Any]:
+    """
+    Enriquece um item candidato a hotcue, tentando analisar estruturas de dados embutidas (JSON, XML, pares chave-valor).
+    """
     enriched = dict(item)
     text_values = collect_strings(item)
 
@@ -262,6 +306,9 @@ def enrich_candidate(item: dict[str, Any]) -> dict[str, Any]:
 
 
 def collect_strings(value: Any) -> list[str]:
+    """
+    Coleta todas as strings de uma estrutura de dados aninhada (dicionário, lista, string).
+    """
     if isinstance(value, str):
         return [value]
     if isinstance(value, dict):
@@ -278,6 +325,9 @@ def collect_strings(value: Any) -> list[str]:
 
 
 def parse_embedded_structure(text: str) -> Any | None:
+    """
+    Tenta analisar uma string para encontrar estruturas de dados embutidas (JSON, XML, pares chave-valor).
+    """
     stripped = text.strip()
     if not stripped:
         return None
@@ -303,6 +353,9 @@ def parse_embedded_structure(text: str) -> Any | None:
 
 
 def decode_base64_text(text: str) -> str | None:
+    """
+    Tenta decodificar uma string que pode ser base64 e retornar o texto resultante.
+    """
     compact = re.sub(r"\s+", "", text.strip("\x00 "))
     if len(compact) < 12 or not re.fullmatch(r"[A-Za-z0-9+/=]+", compact):
         return None
@@ -318,6 +371,9 @@ def decode_base64_text(text: str) -> str | None:
 
 
 def decode_base64_binary(text: str) -> bytes | None:
+    """
+    Tenta decodificar uma string que pode ser base64 e retornar os bytes resultantes.
+    """
     compact = re.sub(r"\s+", "", text.strip("\x00 "))
     if not compact:
         return None
@@ -335,6 +391,9 @@ def decode_base64_binary(text: str) -> bytes | None:
 
 
 def argb_to_hex(value: str | int | None) -> str | None:
+    """
+    Converte um valor ARGB (string ou inteiro) para uma string hexadecimal de cor (#RRGGBB).
+    """
     if value in (None, ""):
         return None
 
@@ -351,6 +410,9 @@ def argb_to_hex(value: str | int | None) -> str | None:
 
 
 def seconds_to_timecode(value: str | float | int | None) -> str | None:
+    """
+    Converte um valor em segundos para um formato de timecode (MM:SS.mmm).
+    """
     if value in (None, ""):
         return None
 
@@ -365,6 +427,9 @@ def seconds_to_timecode(value: str | float | int | None) -> str | None:
 
 
 def normalize_hotcue(raw: dict[str, Any], source: str, index: int | None = None) -> dict[str, Any]:
+    """
+    Normaliza um dicionário de hotcue bruto, extraindo e padronizando suas propriedades.
+    """
     number = raw.get("num") or raw.get("Num") or raw.get("index") or raw.get("Index")
     number = number if number not in (None, "") else index
 
@@ -409,6 +474,9 @@ def normalize_hotcue(raw: dict[str, Any], source: str, index: int | None = None)
 
 
 def extract_serato_markers2(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    """
+    Extrai hotcues do formato "serato markers2" encontrado em frames ID3 PRIV.
+    """
     if "serato markers2" not in str(candidate.get("description", "")).lower():
         return []
 
@@ -447,6 +515,9 @@ def extract_serato_markers2(candidate: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def merge_hotcue_details(hotcues: list[dict[str, Any]], details: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Mescla uma lista de hotcues com detalhes adicionais, priorizando informações mais completas.
+    """
     if not details:
         return hotcues
 
@@ -484,6 +555,9 @@ def merge_hotcue_details(hotcues: list[dict[str, Any]], details: list[dict[str, 
 
 
 def extract_hotcues_from_candidates(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Extrai hotcues de uma lista de frames ID3 candidatos, analisando diferentes formatos.
+    """
     hotcues: list[dict[str, Any]] = []
     serato_details: list[dict[str, Any]] = []
     for candidate in candidates:
@@ -519,6 +593,9 @@ def extract_hotcues_from_candidates(candidates: list[dict[str, Any]]) -> list[di
 
 
 def parse_virtualdj_song(path: Path) -> dict[str, Any]:
+    """
+    Analisa um arquivo XML/TXT de banco de dados do Virtual DJ para extrair informações de uma música e seus POIs (incluindo hotcues).
+    """
     text = path.read_text(encoding="utf-8-sig", errors="replace").strip()
     root = ET.fromstring(text)
 
@@ -561,6 +638,9 @@ def parse_virtualdj_song(path: Path) -> dict[str, Any]:
 
 
 def read_mp3(path: Path, dump_frames: bool = False) -> dict[str, Any]:
+    """
+    Lê um arquivo MP3, extrai tags ID3v2 e tenta encontrar hotcues.
+    """
     metadata, frames = parse_id3_frames(path)
     decoded_frames = [parse_frame(frame) for frame in frames]
     hotcue_candidates = [enrich_candidate(frame) for frame in decoded_frames if is_hotcue_candidate(frame)]
@@ -578,6 +658,9 @@ def read_mp3(path: Path, dump_frames: bool = False) -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Constrói o parser de argumentos para a linha de comando.
+    """
     parser = argparse.ArgumentParser(
         description="Le tags ID3 de MP3 e retorna possiveis hotcues em JSON."
     )
@@ -606,6 +689,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    Função principal para executar a ferramenta de leitura de tags MP3.
+    """
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 

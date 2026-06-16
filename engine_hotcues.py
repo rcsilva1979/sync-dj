@@ -28,6 +28,9 @@ from mutagen import File
 
 @dataclass
 class Hotcue:
+    """
+    Representa um hotcue lido do banco de dados do Engine DJ.
+    """
     performance_id: Any
     track_id: Any
     cue_number: int
@@ -40,6 +43,9 @@ class Hotcue:
 
 @dataclass
 class CueWrite:
+    """
+    Representa um hotcue a ser escrito no banco de dados do Engine DJ.
+    """
     cue_number: int
     label: str
     position_seconds: float
@@ -48,6 +54,9 @@ class CueWrite:
 
 @dataclass
 class TrackInfo:
+    """
+    Representa informações básicas de uma faixa de música.
+    """
     track_id: Any
     title: str
     artist: str
@@ -62,6 +71,9 @@ class TrackInfo:
 
 @dataclass
 class VdjTrack:
+    """
+    Representa uma faixa de música do Virtual DJ, incluindo seus hotcues.
+    """
     key: str
     filepath: str
     directory: str
@@ -83,15 +95,27 @@ ENGINE_DJ_CUE_COLORS: dict[int, bytes] = {
 }
 
 def get_sample_rate(path: str) -> float:
+    """
+    Obtém a taxa de amostragem de um arquivo de áudio.
+    :param path: Caminho para o arquivo de áudio.
+    :return: Taxa de amostragem em Hz.
+    """
     audio = File(path)
     return float(audio.info.sample_rate)
 
 def samples_to_seconds(samples: float, sample_rate: float) -> float:
+    """
+    Converte o número de amostras para segundos.
+    """
     return samples / sample_rate
 
 def normalize_cue_time(value: float, mode: str, sample_rate: float) -> float:
+    """
+    Normaliza o tempo de um hotcue para segundos, dado o modo (samples ou seconds) e a taxa de amostragem.
+    """
     if mode == "samples":
         return value / sample_rate
+    # seconds direto
     return value  # seconds direto
 
 def quote_ident(name: str) -> str:
@@ -99,11 +123,17 @@ def quote_ident(name: str) -> str:
 
 
 def connect_readonly(db_path: Path) -> sqlite3.Connection:
+    """
+    Conecta-se a um banco de dados SQLite em modo somente leitura.
+    """
     uri = db_path.resolve().as_uri() + "?mode=ro"
     return sqlite3.connect(uri, uri=True)
 
 
 def table_names(conn: sqlite3.Connection) -> list[str]:
+    """
+    Retorna uma lista com os nomes de todas as tabelas no banco de dados.
+    """
     rows = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
     ).fetchall()
@@ -111,6 +141,9 @@ def table_names(conn: sqlite3.Connection) -> list[str]:
 
 
 def columns(conn: sqlite3.Connection, table: str) -> list[str]:
+    """
+    Retorna uma lista com os nomes das colunas de uma tabela específica.
+    """
     return [row[1] for row in conn.execute(f"PRAGMA table_info({quote_ident(table)})")]
 
 
@@ -123,6 +156,9 @@ def find_name(names: Iterable[str], wanted: str) -> str | None:
 
 
 def maybe_decompress(blob: bytes) -> tuple[bytes, bool]:
+    """
+    Tenta descomprimir um blob de dados usando zlib.
+    """
     if len(blob) > 6 and blob[4:6] in (b"\x78\x01", b"\x78\x9c", b"\x78\xda"):
         try:
             data = zlib.decompress(blob[4:])
@@ -139,6 +175,9 @@ def maybe_decompress(blob: bytes) -> tuple[bytes, bool]:
 
 
 def decode_color(raw: bytes) -> str | None:
+    """
+    Decodifica uma cor de bytes para uma string hexadecimal (ex: #RRGGBB).
+    """
     if len(raw) >= 4 and raw[0] == 0xFF:
         r, g, b = raw[1], raw[2], raw[3]
     elif len(raw) >= 3:
@@ -151,6 +190,9 @@ def decode_color(raw: bytes) -> str | None:
 
 
 def argb_to_rgb(color: bytes) -> tuple[int, int, int] | None:
+    """
+    Converte uma cor ARGB em bytes para uma tupla RGB.
+    """
     if len(color) >= 4 and color[0] == 0xFF:
         return color[1], color[2], color[3]
     if len(color) >= 3:
@@ -159,6 +201,9 @@ def argb_to_rgb(color: bytes) -> tuple[int, int, int] | None:
 
 
 def nearest_engine_color(red: int, green: int, blue: int) -> bytes:
+    """
+    Encontra a cor do Engine DJ mais próxima de uma cor RGB dada.
+    """
     def distance(color: bytes) -> int:
         rgb = argb_to_rgb(color)
         if rgb is None:
@@ -176,6 +221,9 @@ def parse_quick_cues(
     sample_rate: float | None = 44100.0,
     max_slots: int = 8,
 ) -> list[Hotcue]:
+    """
+    Analisa um blob de dados 'quickCues' do Engine DJ e extrai os hotcues.
+    """
     data, _ = maybe_decompress(blob)
     cues: list[Hotcue] = []
 
@@ -237,6 +285,9 @@ def parse_quick_cues(
 
 
 def split_quick_cues_blob(blob: bytes, max_slots: int = 8) -> tuple[bytes, dict[int, bytes], bytes]:
+    """
+    Divide um blob de 'quickCues' em cabeçalho, cores de slot e o restante dos dados.
+    """
     data, _ = maybe_decompress(blob)
     header = data[:8] if len(data) >= 8 else (max_slots).to_bytes(8, "big")
     colors: dict[int, bytes] = {}
@@ -265,6 +316,9 @@ def split_quick_cues_blob(blob: bytes, max_slots: int = 8) -> tuple[bytes, dict[
 
 
 def vdj_color_to_bytes(color_value: str | None) -> bytes | None:
+    """
+    Converte um valor de cor do Virtual DJ para o formato de bytes do Engine DJ.
+    """
     if not color_value:
         return None
     try:
@@ -283,6 +337,9 @@ def encode_quick_cues(
     sample_rate: float = 44100.0,
     max_slots: int = 8,
 ) -> bytes:
+    """
+    Codifica uma lista de hotcues no formato de blob 'quickCues' para o Engine DJ.
+    """
     header = max_slots.to_bytes(8, "big")
     existing_colors: dict[int, bytes] = {}
     tail = b""
@@ -314,6 +371,9 @@ def encode_quick_cues(
 
 
 def best_id_column(cols: list[str]) -> str | None:
+    """
+    Tenta encontrar a coluna de ID mais provável em uma lista de nomes de colunas.
+    """
     for candidate in ("id", "ID", "uuid", "trackId", "track_id", "trackID"):
         found = find_name(cols, candidate)
         if found:
@@ -322,6 +382,9 @@ def best_id_column(cols: list[str]) -> str | None:
 
 
 def find_track_id_column(cols: list[str]) -> str | None:
+    """
+    Tenta encontrar a coluna de ID da faixa mais provável em uma lista de nomes de colunas.
+    """
     candidates = (
         "trackId",
         "track_id",
@@ -342,6 +405,9 @@ def find_track_id_column(cols: list[str]) -> str | None:
 
 
 def get_track_title_map(conn: sqlite3.Connection) -> dict[Any, str]:
+    """
+    Retorna um mapeamento de IDs de faixa para títulos formatados (Artista - Título).
+    """
     titles: dict[Any, str] = {}
     for track_id, info in get_track_info_map(conn).items():
         title = info.title or info.filename or str(track_id)
@@ -350,6 +416,9 @@ def get_track_title_map(conn: sqlite3.Connection) -> dict[Any, str]:
 
 
 def get_track_info_map(conn: sqlite3.Connection) -> dict[Any, TrackInfo]:
+    """
+    Retorna um mapeamento de IDs de faixa para objetos TrackInfo contendo detalhes da faixa.
+    """
     tables = table_names(conn)
     track_table = find_name(tables, "Track")
     if not track_table:
@@ -394,6 +463,9 @@ def get_track_info_map(conn: sqlite3.Connection) -> dict[Any, TrackInfo]:
 
 
 def split_music_path(path: str) -> tuple[str, str]:
+    """
+    Divide um caminho de arquivo em diretório e nome do arquivo.
+    """
     normalized = (path or "").replace("\\", "/").strip()
     if "/" not in normalized:
         return "", normalized
@@ -402,6 +474,9 @@ def split_music_path(path: str) -> tuple[str, str]:
 
 
 def normalize_directory(directory: str) -> str:
+    """
+    Normaliza um caminho de diretório para comparação, removendo partes irrelevantes e convertendo para minúsculas.
+    """
     parts = []
     for part in directory.replace("\\", "/").split("/"):
         part = part.strip()
@@ -414,16 +489,25 @@ def normalize_directory(directory: str) -> str:
 
 
 def normalize_filename(filename: str) -> str:
+    """
+    Normaliza um nome de arquivo para comparação, convertendo para minúsculas e removendo espaços.
+    """
     return (filename or "").strip().lower()
 
 
 def music_match_key(path: str, filename: str = "") -> str:
+    """
+    Cria uma chave de correspondência para uma faixa de música, combinando o diretório normalizado e o nome do arquivo.
+    """
     directory, path_filename = split_music_path(path)
     final_filename = filename or path_filename
     return f"{normalize_directory(directory)}|{normalize_filename(final_filename)}"
 
 
 def read_hotcues(conn: sqlite3.Connection, sample_rate: float | None) -> list[Hotcue]:
+    """
+    Lê e decodifica os hotcues da tabela PerformanceData do banco de dados do Engine DJ.
+    """
     tables = table_names(conn)
     perf_table = find_name(tables, "PerformanceData")
     if not perf_table:
@@ -486,9 +570,14 @@ def read_hotcues(conn: sqlite3.Connection, sample_rate: float | None) -> list[Ho
 
 def get_mp3_tag_cues(track_filename: str) -> list[CueWrite]:
     """
-    Lê hotcues diretamente da tag MP3 (ex: serato_markers2)
-    e retorna no mesmo formato usado pelo Engine/VinylDJ.
+    Lê hotcues diretamente da tag MP3 (ex: serato_markers2) e retorna no formato CueWrite.
+    Esta função é um placeholder e atualmente não implementa a leitura real das tags.
+
+    :param track_filename: O nome do arquivo da faixa.
+    :return: Uma lista de objetos CueWrite.
     """
+
+
     return []
 
 def format_time(seconds: float | None) -> str:
@@ -500,6 +589,9 @@ def format_time(seconds: float | None) -> str:
 
 
 def build_web_payload(conn: sqlite3.Connection, sample_rate: float | None) -> dict[str, Any]:
+    """
+    Constrói um payload JSON com informações de faixas e hotcues para exibição em uma interface web.
+    """
     cues = read_hotcues(conn, sample_rate=sample_rate)
     tracks = get_track_info_map(conn)
     grouped: dict[Any, dict[str, Any]] = {}
@@ -553,6 +645,9 @@ def build_web_payload(conn: sqlite3.Connection, sample_rate: float | None) -> di
 
 
 def read_vdj_cues(xml_path: Path, target_filename: str) -> tuple[str, list[CueWrite]]:
+    """
+    Lê hotcues de um arquivo XML do Virtual DJ para uma faixa específica.
+    """
     target = target_filename.lower()
     matches: list[tuple[str, list[CueWrite]]] = []
 
@@ -596,6 +691,9 @@ def read_vdj_cues(xml_path: Path, target_filename: str) -> tuple[str, list[CueWr
 
 
 def read_vdj_tracks(xml_path: Path) -> dict[str, VdjTrack]:
+    """
+    Lê todas as faixas e seus hotcues de um arquivo XML do Virtual DJ.
+    """
     tracks: dict[str, VdjTrack] = {}
 
     for _event, elem in ET.iterparse(xml_path, events=("end",)):
@@ -649,6 +747,9 @@ def read_vdj_tracks(xml_path: Path) -> dict[str, VdjTrack]:
 
 
 def build_engine_compare_tracks(conn: sqlite3.Connection, sample_rate: float) -> dict[str, dict[str, Any]]:
+    """
+    Constrói um dicionário de faixas do Engine DJ para comparação, incluindo hotcues.
+    """
     rows = conn.execute(
         """
         SELECT Track.id, Track.path, Track.filename, Track.title, Track.artist,
@@ -696,6 +797,9 @@ def build_engine_compare_tracks(conn: sqlite3.Connection, sample_rate: float) ->
 
 
 def cue_to_payload(cue: Hotcue | CueWrite) -> dict[str, Any]:
+    """
+    Converte um objeto Hotcue ou CueWrite em um dicionário para uso em payload JSON.
+    """
     if isinstance(cue, Hotcue):
         color_hex = cue.color_hex or "#9CA3AF"
         position_seconds = cue.position_seconds
@@ -709,15 +813,6 @@ def cue_to_payload(cue: Hotcue | CueWrite) -> dict[str, Any]:
         "position_seconds": position_seconds,
         "color_hex": color_hex,
     }
-
-def normalize_cue_from_tag(cue: CueWrite, tag_time: float | None) -> CueWrite:
-    """
-    Ajusta o cue usando referência da TAG (Serato / MP3).
-    Essa função passa a ser a fonte única de verdade.
-    """
-    if tag_time is not None:
-        cue.position_seconds = tag_time
-    return cue
 
 def expected_vdj_cue_payload(cue: CueWrite, engine_color_by_slot: dict[int, str]) -> dict[str, Any]:
     color_hex = decode_color(cue.color_bytes or b"")
@@ -735,6 +830,9 @@ def expected_vdj_cue_payload(cue: CueWrite, engine_color_by_slot: dict[int, str]
 
 
 def cue_compare_signature(cues: list[dict[str, Any]]) -> list[tuple[int, str, float, str]]:
+    """
+    Gera uma assinatura comparável para uma lista de hotcues, usada para verificar se dois conjuntos de hotcues são idênticos.
+    """
     signature = []
     for cue in cues:
         seconds = cue.get("position_seconds")
@@ -750,6 +848,9 @@ def cue_compare_signature(cues: list[dict[str, Any]]) -> list[tuple[int, str, fl
 
 
 def build_compare_payload(db_path: Path, xml_path: Path, sample_rate: float) -> dict[str, Any]:
+    """
+    Constrói um payload JSON para comparar hotcues entre o Engine DJ e o Virtual DJ.
+    """
     with connect_readonly(db_path) as conn:
         engine_tracks = build_engine_compare_tracks(conn, sample_rate)
     vdj_tracks = read_vdj_tracks(xml_path)
@@ -805,6 +906,9 @@ def import_vdj_matches(
     selected_keys: list[str],
     sample_rate: float,
 ) -> dict[str, Any]:
+    """
+    Importa hotcues de faixas selecionadas do Virtual DJ para o Engine DJ.
+    """
     if not selected_keys:
         return {"updated": 0, "backup": "", "tracks": []}
 
@@ -865,6 +969,9 @@ def import_vdj_matches(
 
 
 def render_html(payload: dict[str, Any]) -> str:
+    """
+    Renderiza uma página HTML para exibir os hotcues do Engine DJ.
+    """
     payload_json = json.dumps(payload, ensure_ascii=False)
     return f"""<!doctype html>
 <html lang="pt-BR">
@@ -1170,6 +1277,9 @@ def render_html(payload: dict[str, Any]) -> str:
 
 
 def render_compare_html(payload: dict[str, Any]) -> str:
+    """
+    Renderiza uma página HTML para comparar hotcues entre o Engine DJ e o Virtual DJ.
+    """
     payload_json = json.dumps(payload, ensure_ascii=False)
     return f"""<!doctype html>
 <html lang="pt-BR">
@@ -1631,6 +1741,9 @@ def render_compare_html(payload: dict[str, Any]) -> str:
 
 
 def cmd_inspect(args: argparse.Namespace) -> int:
+    """
+    Comando para inspecionar as tabelas e colunas de um banco de dados do Engine DJ.
+    """
     with connect_readonly(Path(args.db)) as conn:
         for table in table_names(conn):
             cols = columns(conn, table)
@@ -1641,6 +1754,9 @@ def cmd_inspect(args: argparse.Namespace) -> int:
 
 
 def cmd_list(args: argparse.Namespace) -> int:
+    """
+    Comando para decodificar e listar os hotcues da tabela PerformanceData.quickCues.
+    """
     with connect_readonly(Path(args.db)) as conn:
         cues = read_hotcues(conn, sample_rate=args.sample_rate)
         track_titles = get_track_title_map(conn)
@@ -1692,6 +1808,9 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def cmd_web(args: argparse.Namespace) -> int:
+    """
+    Comando para gerar uma página HTML autônoma com os hotcues agrupados por música.
+    """
     db_path = Path(args.db)
     output_path = Path(args.output)
     with connect_readonly(db_path) as conn:
@@ -1704,6 +1823,9 @@ def cmd_web(args: argparse.Namespace) -> int:
 
 
 def cmd_import_vdj(args: argparse.Namespace) -> int:
+    """
+    Comando para importar hotcues do Virtual DJ para uma faixa específica do Engine DJ.
+    """
     db_path = Path(args.db)
     xml_path = Path(args.xml)
     target_filename = args.filename
@@ -1762,6 +1884,9 @@ def cmd_import_vdj(args: argparse.Namespace) -> int:
 
 
 def make_compare_handler(db_path: Path, xml_path: Path, sample_rate: float):
+    """
+    Cria um manipulador HTTP para o servidor web de comparação de hotcues.
+    """
     class CompareHandler(BaseHTTPRequestHandler):
         def log_message(self, format: str, *args: Any) -> None:
             print(f"{self.address_string()} - {format % args}")
@@ -1815,6 +1940,9 @@ def make_compare_handler(db_path: Path, xml_path: Path, sample_rate: float):
 
 
 def cmd_compare_web(args: argparse.Namespace) -> int:
+    """
+    Comando para iniciar um servidor web local para comparar e importar seletivamente hotcues do Virtual DJ.
+    """
     db_path = Path(args.db)
     xml_path = Path(args.xml)
     payload = build_compare_payload(db_path, xml_path, args.sample_rate)
@@ -1841,6 +1969,9 @@ def cmd_compare_web(args: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """
+    Constrói o parser de argumentos para a linha de comando.
+    """
     parser = argparse.ArgumentParser(
         description="Inspect and list Engine DJ hotcues from an m.db database."
     )
@@ -1935,6 +2066,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """
+    Função principal para executar os comandos da ferramenta de hotcues.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

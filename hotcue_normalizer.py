@@ -1,7 +1,14 @@
 # hotcue_normalizer.py
 from le_json import seconds_to_timecode
 
+# Função para normalizar uma lista de hotcues
 def normalize_hotcues(hotcues: list[dict]) -> list[dict]:
+    """
+    Normaliza uma lista de hotcues, ajustando seus tempos e formatando-os.
+    Realiza a conversão de milissegundos para segundos e aplica uma compensação de delay.
+    :param hotcues: Uma lista de dicionários representando hotcues brutos.
+    :return: Uma lista de dicionários de hotcues normalizados.
+    """
     normalized = []
 
     for c in hotcues:
