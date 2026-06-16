@@ -4,8 +4,8 @@ import sys
 IS_WIN = sys.platform.startswith('win')
 IS_MAC = sys.platform == 'darwin'
 
-VERSAO_ATUAL = "v0.0.9"
-APP_NAME = "Engine DJ Tools Suite"
+VERSAO_ATUAL = "v1.1.0"
+APP_NAME = "Sync DJ Tools Suite"
 
 # --- ESTILOS GLOBAIS ---
 # Fontes
@@ -86,7 +86,7 @@ STRINGS = {
         "export_vdj_confirm_msg": "Playlist: {playlist_name}\nDestino: {dest_path}",
         "exported_tracks_from_dbs_count": "Exportadas {num_tracks} faixas de {num_dbs} banco(s).",
         "hotcue": "Importar Hotcues do MP3 (Mixed In Key / Serato)",
-        "hotcue_import_btn": "Importar Hotcues (Mixed In Key / Serato)",
+        "hotcue_import_btn": "Importar Hotcues MP3 TAG (Mixed In Key / Serato)",
         "hotcue_overwrite": "  ↳  Sobrescrever hotcues existentes no Engine DJ [PROCESSO DEMORADO]",
         "hybrid_playlist_detected_msg": " (Playlist Híbrida detectada em {num_drives} discos)",
         "importing_tracks_to_drive": "Importando {count} faixas para o banco do disco {drive}...",
@@ -138,8 +138,8 @@ STRINGS = {
         "skipped_not_found": "Não encontrados na pasta selecionada",
         "relocate_mode_label": "Ação ao encontrar arquivos ausentes:",
         "relocate_mode_alert": "Apenas alertar (Sem alterações)",
-        "relocate_mode_copy": "Restaurar: Copiar arquivo para a pasta original (Conserva o banco)",
-        "relocate_mode_update": "Relocar: Atualizar caminho no banco de dados (Corrige o banco)",
+        "relocate_mode_copy": "Restaurar: Copiar arquivo para a pasta original (Conserva o banco de dados)",
+        "relocate_mode_update": "Relocar: Atualizar caminho no banco de dados (Corrige o banco de dados)",
         "relocate_just_verify_label": "Apenas Verificar (Sem alterações / Gerar Relatório)",
         "relocate_btn_action": "Iniciar Busca e Relocação",
         "fuzzy_search_label": "Busca inteligente (Arquivos renomeados ou nome parcial)",
@@ -166,9 +166,9 @@ STRINGS = {
         "success_vdj_import": "A playlist '{playlist_name}' foi distribuída e sincronizada com sucesso nos discos detectados!",
         "success_xml_generated": "Playlist XML gerada com sucesso!\n{count} músicas processadas.",
         "sync_btn": "Iniciar Sincronização",
-        "sync_vdj_btn": "Sync VDJ (Engine ⟷ Virtual DJ)",
+        "sync_vdj_btn": "Sync VDJ (Engine DJ ⟷ Virtual DJ)",
         "title": "Engine DJ - Mirror Sync",
-        "update_msg": "Uma nova versão do Engine Sync está disponível!\n\nSua versão: {}\nNova versão: {}\n\nDeseja baixar a atualização agora?",
+        "update_msg": "Uma nova versão do Sync DJ está disponível!\n\nSua versão: {}\nNova versão: {}\n\nDeseja baixar a atualização agora?",
         "update_title": "Atualização Disponível!",
         "vdj_back_btn": "Voltar para Sync DJ",
         "vdj_config_label": "Configuração: {settings}",
@@ -236,7 +236,7 @@ STRINGS = {
         "export_vdj_confirm_msg": "Playlist: {playlist_name}\nDestination: {dest_path}",
         "exported_tracks_from_dbs_count": "Exported {num_tracks} tracks from {num_dbs} database(s).",
         "hotcue": "Import Hotcues from MP3 (Mixed In Key / Serato)",
-        "hotcue_import_btn": "Import Hotcues (Mixed In Key / Serato)",
+        "hotcue_import_btn": "Import Hotcues MP3 TAG (Mixed In Key / Serato)",
         "hotcue_overwrite": "  ↳  Overwrite existing hotcues in Engine DJ [SLOW PROCESS]",
         "hybrid_playlist_detected_msg": " (Hybrid Playlist detected on {num_drives} drives)",
         "importing_tracks_to_drive": "Importing {count} tracks to drive {drive} database...",
@@ -316,9 +316,9 @@ STRINGS = {
         "success_vdj_import": "Playlist '{playlist_name}' successfully distributed and synced across detected drives!",
         "success_xml_generated": "Playlist XML successfully generated!\n{count} tracks processed.",
         "sync_btn": "Start Synchronization",
-        "sync_vdj_btn": "Sync VDJ (Engine ⟷ Virtual DJ)",
+        "sync_vdj_btn": "Sync VDJ (Engine DJ ⟷ Virtual DJ)",
         "title": "Engine DJ - Mirror Sync",
-        "update_msg": "A new version of Engine Sync is available!\n\nYour version: {}\nNew version: {}\n\nWould you like to download it now?",
+        "update_msg": "A new version of Sync DJ is available!\n\nYour version: {}\nNew version: {}\n\nWould you like to download it now?",
         "update_title": "Update Available!",
         "vdj_back_btn": "Back to Sync DJ",
         "vdj_config_label": "Configuration: {settings}",
@@ -385,7 +385,7 @@ STRINGS = {
         "export_vdj_confirm_msg": "Playlist: {playlist_name}\nDestino: {dest_path}",
         "exported_tracks_from_dbs_count": "Exportadas {num_tracks} pistas de {num_dbs} base(s) de datos.",
         "hotcue": "Importar Hotcues del MP3 (Mixed In Key / Serato)",
-        "hotcue_import_btn": "Importar Hotcues (Mixed In Key / Serato)",
+        "hotcue_import_btn": "Importar Hotcues MP3 TAG (Mixed In Key / Serato)",
         "hotcue_overwrite": "  ↳  Sobrescribir hotcues existentes en Engine DJ [PROCESO DEMORADO]",
         "hybrid_playlist_detected_msg": " (Playlist Híbrida detectada en {num_drives} discos)",
         "importing_tracks_to_drive": "Importando {count} pistas al banco del disco {drive}...",
@@ -437,8 +437,8 @@ STRINGS = {
         "skipped_not_found": "No encontrados en la carpeta seleccionada",
         "relocate_mode_label": "Acción al encontrar archivos faltantes:",
         "relocate_mode_alert": "Sólo alertar (Sin cambios)",
-        "relocate_mode_copy": "Restaurar: Copiar archivo a la carpeta original (Conserva la base)",
-        "relocate_mode_update": "Relocalizar: Actualizar ruta en la base de datos (Corrige la base)",
+        "relocate_mode_copy": "Restaurar: Copiar archivo a la carpeta original (Conserva la base de datos)",
+        "relocate_mode_update": "Relocalizar: Actualizar ruta en la base de datos (Corrige la base de datos)",
         "relocate_btn_action": "Iniciar Búsqueda y Relocalización",
         "relocate_just_verify_label": "Solo verificar (Sin cambios / Generar informe)",
         "fuzzy_search_label": "Búsqueda inteligente (Archivos renombrados o nombre parcial)",
@@ -465,9 +465,9 @@ STRINGS = {
         "success_vdj_import": "¡La playlist '{playlist_name}' fue distribuida y sincronizada con éxito en los discos detectados!",
         "success_xml_generated": "¡Playlist XML generada con éxito!\n{count} canciones procesadas.",
         "sync_btn": "Iniciar Sincronización",
-        "sync_vdj_btn": "Sync VDJ (Engine ⟷ Virtual DJ)",
+        "sync_vdj_btn": "Sync VDJ (Engine DJ ⟷ Virtual DJ)",
         "title": "Engine DJ - Mirror Sync",
-        "update_msg": "¡Una nova versión de Engine Sync está disponible!\n\nTu versão: {}\nNueva versión: {}\n\n¿Quieres descargarla ahora?",
+        "update_msg": "¡Una nova versión de Sync DJ está disponible!\n\nTu versão: {}\nNueva versión: {}\n\n¿Quieres descargarla ahora?",
         "update_title": "¡Actualización Disponible!",
         "vdj_config_label": "Configuración: {settings}",
         "vdj_export_btn": "Exportar Playlist de Engine DJ a VDJ",

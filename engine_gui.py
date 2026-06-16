@@ -88,7 +88,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.found_databases = self.manager.localizar_bancos_dados()
 
         self.path_musicas = ctk.StringVar(value=self.manager.config.get("pasta_musicas", "")) # Mantém para estado interno
-        self.path_db = ctk.StringVar(value=self.manager.config.get("path_db", "")) # Mantém para estado interno
+        self.path_db = ctk.StringVar(value="") # Volátil, selecionado automaticamente por disco
 
         self.fazer_backup = ctk.BooleanVar(value=self.manager.config.get("fazer_backup", True))
         self.importar_hotcue = ctk.BooleanVar(value=False)
@@ -193,7 +193,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.lbl_status.pack(pady=(8, 3), fill="x", padx=30)
 
         # Barra de progresso
-        self.progress_bar = ctk.CTkProgressBar(self, width=620, height=12, progress_color="#00E5A3", corner_radius=0)
+        self.progress_bar = ctk.CTkProgressBar(self, width=620, height=12, progress_color="#00E5A3", corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(pady=4)
         self.progress_bar.set(0)
 
@@ -220,7 +220,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
     def detectar_banco_por_drive(self):
         """Localiza o m.db automaticamente no mesmo disco da pasta de músicas."""
         pasta = self.path_musicas.get()
-        db_from_config = self.manager.config.get("path_db", "")
         
         banco_alvo = None
         drive_musica = None
@@ -234,43 +233,36 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
                 p = abs_p.split(os.sep)
                 return p[2] if len(p) > 2 and p[1] == 'Volumes' else 'System'
 
-        # Prioridade 1: Banco no mesmo drive da pasta de músicas
+        # Busca dinâmica em todos os discos conectados
+        self.found_databases = self.manager.localizar_bancos_dados()
+
+        # O banco de dados alvo deve obrigatoriamente estar no mesmo disco que a pasta de músicas
         if pasta and os.path.exists(pasta):
             drive_musica = get_vol_id(pasta)
             for b in self.found_databases:
                 if get_vol_id(b) == drive_musica:
                     banco_alvo = b
                     break
-        
-        # Prioridade 2: Banco salvo na configuração (se for válido e não foi encontrado no drive da música)
-        if not banco_alvo and db_from_config and os.path.exists(db_from_config):
-            banco_alvo = db_from_config
-        
-        # Prioridade 3: Primeiro banco encontrado na lista geral (se nenhum dos anteriores foi selecionado)
-        if not banco_alvo and self.found_databases:
-            banco_alvo = self.found_databases[0]
 
         if banco_alvo and os.path.exists(banco_alvo):
             self.path_db.set(banco_alvo) # Define o caminho do banco
-            self.salvar_config_ui() # Salva a configuração para persistir o banco encontrado
             
-            # Ponto 6: Informar os locais (discos) localizados destacando o alvo
-            drives_encontrados = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases}))
-            drive_alvo = os.path.splitdrive(banco_alvo)[0].upper()
+            # Informar os locais (discos) localizados destacando o alvo automático
+            drives_encontrados = sorted(list({get_vol_id(d) for d in self.found_databases}))
+            drive_alvo = get_vol_id(banco_alvo)
             
             texto_drives = " | ".join([f"[{d}]" if d == drive_alvo else d for d in drives_encontrados])
             self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color=COLOR_TEXT_NORMAL)
         else: # Nenhum banco válido encontrado
             self.path_db.set("") # Limpa o caminho do banco
-            self.salvar_config_ui() # Salva a configuração (com path_db vazio)
 
-            drives_encontrados = sorted(list({os.path.splitdrive(d)[0].upper() for d in self.found_databases})) # type: ignore
             if drive_musica:
                 self.lbl_db_auto.configure(
                     text=self.txt.get("error_no_db_on_drive", "Erro: Banco de Dados não encontrado no disco {drive}").format(drive=drive_musica),
                     text_color="#FF5555"
                 )
             else:
+                drives_encontrados = sorted(list({get_vol_id(d) for d in self.found_databases}))
                 texto_drives = " | ".join(drives_encontrados) if drives_encontrados else self.txt.get("not_found", "Não localizada")
                 self.lbl_db_auto.configure(text=f"✖ {self.txt.get('db_file', 'Banco de Dados (m.db):')} {texto_drives}", text_color="#FF5555")
         
@@ -483,7 +475,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         
         config_data = {
             "pasta_musicas": self.path_musicas.get(),
-            "path_db": self.path_db.get(),
             "playlist_alvo": playlist_alvo,
             "fazer_backup": self.fazer_backup.get()
         }
@@ -536,7 +527,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.after(0, lambda: [self.status_var.set(msg), self.progress_bar.set(progresso) if progresso is not None else None])
 
         def thread_sync():
-            novas, apagadas, hotcues_manipulados, relatorio = self.manager.motor_sincronizacao(self.txt, callback_progresso)
+            novas, apagadas, hotcues_manipulados, relatorio = self.manager.motor_sincronizacao(self.txt, callback_progresso, db_path)
             self.after(0, lambda: self.finalizar_sync(novas, apagadas, relatorio))
 
         threading.Thread(target=thread_sync, daemon=True).start()

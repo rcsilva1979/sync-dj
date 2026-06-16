@@ -39,11 +39,13 @@ class PopUpAtualizacao(ctk.CTkToplevel):
         else:
             self.bell()
         
-        if sys.platform.startswith('win') and hasattr(master, 'caminho_icone') and os.path.exists(master.caminho_icone):
+        if os.path.exists(master.caminho_icone):
             def aplicar_icone():
                 try:
-                    self.iconbitmap(master.caminho_icone)
-                    self.wm_iconbitmap(master.caminho_icone)
+                    if IS_WIN:
+                        self.iconbitmap(master.caminho_icone)
+                    elif hasattr(master, '_icon_photo'):
+                        self.iconphoto(False, master._icon_photo)
                 except Exception:
                     pass
             self.after(250, aplicar_icone)
@@ -88,10 +90,16 @@ class SettingsWindow(ctk.CTkToplevel):
         self.transient(master)
         self.grab_set()
         
-        if IS_WIN and os.path.exists(master.caminho_icone):
-            try:
-                self.iconbitmap(master.caminho_icone)
-            except: pass
+        # Configuração de Ícone (Padrão para CTkToplevel)
+        if os.path.exists(master.caminho_icone):
+            def aplicar_icone():
+                try:
+                    if IS_WIN:
+                        self.iconbitmap(master.caminho_icone)
+                    elif hasattr(master, '_icon_photo'):
+                        self.iconphoto(False, master._icon_photo)
+                except: pass
+            self.after(200, aplicar_icone)
 
         lbl_header = ctk.CTkLabel(self, text=self.txt.get("settings_title", "Configurações").upper(), 
                                  font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color="#00E5A3")
@@ -137,7 +145,12 @@ class SettingsWindow(ctk.CTkToplevel):
         )
         self.chk_auto_update.pack(anchor="w", pady=8)
 
-        btn_fechar = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), width=100, corner_radius=CORNER_RADIUS_NONE, command=self.destroy)
+        btn_fechar = ctk.CTkButton(
+            self, 
+            text=self.txt.get("close_btn", "Fechar"), 
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            width=100, corner_radius=CORNER_RADIUS_NONE, command=self.destroy
+        )
         btn_fechar.pack(pady=20)
 
 class LauncherHub(ctk.CTk):
@@ -177,8 +190,8 @@ class LauncherHub(ctk.CTk):
         self.txt = STRINGS[self.lang]
 
         # Configurações da janela principal
-        self.title(f"Engine DJ Tools Hub ({VERSAO_ATUAL})")
-        self.geometry("720x650")
+        self.title(f"{APP_NAME} Hub ({VERSAO_ATUAL})")
+        self.geometry("760x650")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
 
@@ -216,7 +229,7 @@ class LauncherHub(ctk.CTk):
                 lbl_logo = ctk.CTkLabel(self, text="", image=logo_img)
                 lbl_logo.pack(pady=(35, 10))
         except:
-            lbl_title = ctk.CTkLabel(self, text="ENGINE DJ TOOLS", font=ctk.CTkFont(family=FONT_FAMILY, size=28, weight="bold"), text_color="#00E5A3")
+            lbl_title = ctk.CTkLabel(self, text=APP_NAME.upper(), font=ctk.CTkFont(family=FONT_FAMILY, size=28, weight="bold"), text_color="#00E5A3")
             # Fallback para o título se a imagem do logo não puder ser carregada.
             lbl_title.pack(pady=(30, 20))
         
@@ -228,7 +241,7 @@ class LauncherHub(ctk.CTk):
         # Frame para organizar os botões das ferramentas em um layout de grade.
         grid_frame = ctk.CTkFrame(self, fg_color="transparent")
         grid_frame.pack(expand=True, padx=40, pady=10)
-        grid_frame.grid_columnconfigure((0, 1), weight=1, minsize=300)
+        grid_frame.grid_columnconfigure((0, 1), weight=1, minsize=320)
 
         button_style = {
             "font": ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
@@ -287,13 +300,13 @@ class LauncherHub(ctk.CTk):
             settings_img_path = get_resource_path(os.path.join("images", "setup.png"))
             if os.path.exists(settings_img_path):
                 img_gear = ctk.CTkImage(Image.open(settings_img_path), size=(24, 24))
-                self.btn_settings = ctk.CTkButton(bottom_frame, text="", image=img_gear, width=30, height=30, 
+                self.btn_settings = ctk.CTkButton(bottom_frame, text="", image=img_gear, width=30, height=30, corner_radius=CORNER_RADIUS_NONE,
                                                 fg_color="transparent", hover_color="#333333", command=self.abrir_configuracoes)
             else:
-                self.btn_settings = ctk.CTkButton(bottom_frame, text="⚙", font=ctk.CTkFont(size=20), width=30, height=30, 
+                self.btn_settings = ctk.CTkButton(bottom_frame, text="⚙", font=ctk.CTkFont(size=20), width=30, height=30, corner_radius=CORNER_RADIUS_NONE,
                                                 fg_color="transparent", hover_color="#333333", command=self.abrir_configuracoes)
         except Exception:
-            self.btn_settings = ctk.CTkButton(bottom_frame, text="⚙", font=ctk.CTkFont(size=20), width=30, height=30, 
+            self.btn_settings = ctk.CTkButton(bottom_frame, text="⚙", font=ctk.CTkFont(size=20), width=30, height=30, corner_radius=CORNER_RADIUS_NONE,
                                             fg_color="transparent", hover_color="#333333", command=self.abrir_configuracoes)
 
         self.btn_settings.pack(side="right", padx=40)

@@ -100,19 +100,16 @@ def get_resource_path(relative_path):
 #VERIFICA ATUALIZACAO
 def check_for_updates(current_version: str) -> str | None:
     """Verifica no GitHub se há uma nova versão disponível."""
-    print(f"DEBUG: Checking for updates. Current version: {current_version}")
     try:
         ctx = ssl._create_unverified_context()
         
         headers = {'User-Agent': 'Mozilla/5.0'}
         if GITHUB_TOKEN:
             headers['Authorization'] = f'token {GITHUB_TOKEN}'
-            print("DEBUG: Using local GitHub Token for authentication.")
             
         req = urllib.request.Request(LATEST_RELEASE_API, headers=headers)
         
         with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
-            print(f"DEBUG: GitHub API response status: {response.status}")
             if response.status == 200:
                 data = json.loads(response.read().decode())
                 
@@ -122,15 +119,11 @@ def check_for_updates(current_version: str) -> str | None:
                 else:
                     github_version = ""
                     
-                print(f"DEBUG: GitHub latest version: {github_version}")
-                
                 if github_version and versao_maior(github_version, current_version):
-                    print(f"DEBUG: New version {github_version} found!")
                     return github_version
-                else:
-                    print(f"DEBUG: No new version or current is up-to-date.")
-    except Exception as e: # Captura a exceção como 'e'
-        print(f"DEBUG: Error checking for updates: {e}")
+
+    except Exception:
+        pass
     return None
 
 # ==============================================================
@@ -460,10 +453,9 @@ class SyncManager:
             
         return removidas_count
 
-    def motor_sincronizacao(self, ui_strings, progress_callback):
+    def motor_sincronizacao(self, ui_strings, progress_callback, db_path):
         self.cancel_requested = False
         pasta = self.config.get("pasta_musicas", "")
-        db_path = self.config.get("path_db", "")
         # Prioriza a playlist selecionada na UI, senão usa o nome da pasta
         nome_colecao = self.config.get("playlist_alvo") or (os.path.basename(os.path.normpath(pasta)) if pasta else ui_strings["collection_name"])
 

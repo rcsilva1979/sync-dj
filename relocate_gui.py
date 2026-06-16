@@ -14,7 +14,7 @@ from database_utils import (
 from engine_sync_app import get_resource_path, SyncManager
 from report_gui import ReportWindow
 from constants import (IS_WIN, IS_MAC, FONT_FAMILY, APP_NAME, 
-                       VERSAO_ATUAL, COLOR_TEXT_MUTED, COLOR_BG_DARK)
+                       VERSAO_ATUAL, COLOR_TEXT_MUTED, COLOR_BG_DARK, CORNER_RADIUS_NONE)
 
 class RelocateLostTracksWindow(ctk.CTkToplevel):
     """
@@ -118,7 +118,8 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         # Label e ComboBox para selecionar a playlist.
         ctk.CTkLabel(frame_pl, text=self.txt["playlist"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
         # O ComboBox é desabilitado inicialmente e populado após o carregamento das playlists.
-        self.combo_playlist = ctk.CTkComboBox(frame_pl, variable=self.selected_playlist, values=[], width=450, state="disabled", font=ctk.CTkFont(family=FONT_FAMILY), dropdown_font=ctk.CTkFont(family=FONT_FAMILY))
+        self.combo_playlist = ctk.CTkComboBox(frame_pl, variable=self.selected_playlist, values=[], width=450, state="disabled", 
+                                             corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY), dropdown_font=ctk.CTkFont(family=FONT_FAMILY))
         self.combo_playlist.pack(pady=2, fill="x")
 
         # Pasta de Busca
@@ -127,11 +128,12 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         
         # Label e campo de entrada para a pasta de busca.
         ctk.CTkLabel(frame_search, text=self.txt["search_folder_label"], font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
-        entry_search = ctk.CTkEntry(frame_search, textvariable=self.search_folder, width=350, font=ctk.CTkFont(family=FONT_FAMILY))
+        entry_search = ctk.CTkEntry(frame_search, textvariable=self.search_folder, width=350, corner_radius=CORNER_RADIUS_NONE, font=ctk.CTkFont(family=FONT_FAMILY))
         entry_search.pack(side="left", pady=2, fill="x", expand=True, padx=(0, 10))
         
         # Botão para abrir o diálogo de seleção de pasta.
-        btn_browse = ctk.CTkButton(frame_search, text=self.txt["browse"], width=100, fg_color="#F39C12", text_color="#000000", hover_color="#D68910", command=self.procurar_pasta_busca)
+        btn_browse = ctk.CTkButton(frame_search, text=self.txt["browse"], width=100, fg_color="#F39C12", text_color="#000000", 
+                                   hover_color="#D68910", corner_radius=CORNER_RADIUS_NONE, command=self.procurar_pasta_busca)
         btn_browse.pack(side="right", pady=2)
         # Botão para abrir o diálogo de seleção de pasta.
 
@@ -186,7 +188,8 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             text=self.txt.get("relocate_just_verify_label", "Apenas Verificar (Sem alteração)"),
             variable=self.just_verify,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-            fg_color="#F39C12", hover_color="#D68910"
+            fg_color="#F39C12", hover_color="#D68910",
+            corner_radius=CORNER_RADIUS_NONE
         )
         self.check_verify.pack(anchor="w", pady=(5, 5))
 
@@ -196,7 +199,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             self,
             text=self.txt["view_tracks_btn"],
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
-            fg_color="#555555", text_color="#FFFFFF", hover_color="#777777",
+            fg_color="#555555", text_color="#FFFFFF", hover_color="#777777", corner_radius=CORNER_RADIUS_NONE,
             height=40, width=350,
             command=self.listar_musicas_faltantes
         )
@@ -208,7 +211,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             self, # type: ignore
             text=self.txt["relocate_btn_action"],
             font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
-            fg_color="#F39C12", text_color="#000000", hover_color="#D68910",
+            fg_color="#F39C12", text_color="#000000", hover_color="#D68910", corner_radius=CORNER_RADIUS_NONE,
             height=40, width=350,
             command=self.iniciar_relocacao
         )
@@ -216,7 +219,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
 
         # Barra de progresso para indicar o andamento da operação.
         # Progresso e Status
-        self.progress_bar = ctk.CTkProgressBar(self, width=500, progress_color="#F39C12")
+        self.progress_bar = ctk.CTkProgressBar(self, width=500, progress_color="#F39C12", corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(pady=5)
         self.progress_bar.set(0)
 
@@ -562,7 +565,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                     if fuzzy_act_val == "copy":
                                         report_item.append(f"  Ação: Copiar arquivo para o local antigo")
                                         report_item.append(f"  Origem:  {novo_caminho_abs}")
-                                        report_item.append(f"  Alvo:    {caminho_esperado}")
+                                        report_item.append(f"  Destino:    {caminho_esperado}")
                                         if not dry_run:
                                             try:
                                                 os.makedirs(os.path.dirname(caminho_esperado), exist_ok=True)
@@ -579,7 +582,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                         if not same_dir: # Só move se for uma pasta diferente
                                             report_item.append(f"  Ação: Mover para local original")
                                             report_item.append(f"  Origem:  {novo_caminho_abs}")
-                                            report_item.append(f"  Alvo:    {caminho_esperado}")
+                                            report_item.append(f"  Destino:    {caminho_esperado}")
                                             if not dry_run:
                                                 os.makedirs(os.path.dirname(caminho_esperado), exist_ok=True)
                                                 if not os.path.exists(caminho_esperado):
@@ -590,7 +593,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                         else:
                                             report_item.append(f"  Aviso: Mover ignorado (Já na mesma pasta).")
                                             report_item.append(f"  Pasta Atual: {os.path.dirname(novo_caminho_abs)}")
-                                            report_item.append(f"  Pasta Alvo:  {os.path.dirname(caminho_esperado)}")
+                                            report_item.append(f"  Pasta Destino:  {os.path.dirname(caminho_esperado)}")
                                             
                                     elif fuzzy_act_val == "rename":
                                         same_dir = os.path.dirname(os.path.abspath(novo_caminho_abs)) == os.path.dirname(os.path.abspath(caminho_esperado))
@@ -607,7 +610,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                                         else:
                                             report_item.append(f"  Aviso: Renomear ignorado (Pastas diferentes).")
                                             report_item.append(f"  Pasta Atual: {os.path.dirname(novo_caminho_abs)}")
-                                            report_item.append(f"  Pasta Alvo:  {os.path.dirname(caminho_esperado)}")
+                                            report_item.append(f"  Pasta Destino:  {os.path.dirname(caminho_esperado)}")
 
                                 elif current_mode == "relocate":
                                     novo_rel_path = self.manager.formatar_caminho_engine(novo_caminho_abs, db_path)
