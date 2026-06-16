@@ -16,6 +16,7 @@ from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME,
                        FONT_FAMILY, COLOR_BG_DARK, COLOR_TEXT_NORMAL,
                        COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
                        CORNER_RADIUS_NONE)
+from report_gui import ReportWindow
 
 try:
     # Tenta importar o VDJManager para localizar as pastas MyLists
@@ -55,9 +56,14 @@ class PlaylistContentWindow(ctk.CTkToplevel):
         
         self.textbox = ctk.CTkTextbox(self, font=ctk.CTkFont(family=FONT_FAMILY, size=11), width=800)
         self.textbox.pack(padx=20, pady=10, fill="both", expand=True)
+        # Configuração de tags de cores para o relatório
+        self.textbox.tag_config("exists", foreground="#00E5A3")
+        self.textbox.tag_config("missing", foreground="#FF5555")
 
         try:
             total_tracks = 0
+            found_count = 0
+            missing_count = 0
             for xml_path in xml_paths:
                 tree = ET.parse(xml_path)
                 root = tree.getroot()
@@ -80,10 +86,26 @@ class PlaylistContentWindow(ctk.CTkToplevel):
                         path = song.get("path", "N/A")
                         artist = song.get("artist", "Desconhecido")
                         title_song = song.get("title", "Sem Título")
-                        self.textbox.insert("end", f"{total_tracks:03d} | {artist} - {title_song}\n      path=\"{path}\"\n\n")
+                        
+                        # Verifica a existência do arquivo no disco
+                        if path != "N/A" and os.path.exists(path):
+                            found_count += 1
+                            tag = "exists"
+                        else:
+                            missing_count += 1
+                            tag = "missing"
+                            
+                        self.textbox.insert("end", f"{total_tracks:03d} | {artist} - {title_song}\n      path=\"{path}\"\n\n", tag)
             
             if total_tracks == 0:
                 self.textbox.insert("end", self.txt.get("no_tracks_in_playlist", "Nenhuma música encontrada nesta playlist.")) # type: ignore
+            else:
+                # Adiciona o resumo consolidado ao final do relatório
+                self.textbox.insert("end", "\n" + "="*60 + "\n")
+                self.textbox.insert("end", "RESUMO DE DISPONIBILIDADE NO DISCO:\n")
+                self.textbox.insert("end", f"  Músicas Localizadas: {found_count}\n", "exists")
+                self.textbox.insert("end", f"  Músicas Não Encontradas: {missing_count}\n", "missing")
+                self.textbox.insert("end", "="*60 + "\n")
         except Exception as e: # type: ignore
             self.textbox.insert("end", self.txt.get("error_reading_xml", "Erro ao ler XML:").format(error=e)) # type: ignore
 
@@ -293,6 +315,16 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
             self.update_status(self.txt.get("status_reading_vdj_playlist", "Lendo playlist VDJ..."), "#00E5A3")
             self.manager.log(log_paths, "Lendo arquivos XML e mapeando faixas por drive...", nivel="debug")
             
+            report_lines = [
+                f"RELATÓRIO DE IMPORTAÇÃO VIRTUAL DJ -> ENGINE DJ\n",
+                f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n",
+                f"Playlist: {playlist_name}\n",
+                "="*60 + "\n\n"
+            ]
+            tracks_added = 0
+            tracks_existed = 0
+            tracks_missing_file = 0
+
             # Agrupa músicas pelo disco de origem
             tracks_by_drive = defaultdict(list)
             for xml_path in xml_paths:
@@ -330,6 +362,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                 self.update_status(self.txt.get("importing_tracks_to_drive", "Importando {count} faixas para o banco do disco {drive}...").format(count=len(tracks), drive=drive), "#00E5A3")
                 
                 conn = sqlite3.connect(db_path) # type: ignore
+                report_lines.append(f"--- DISCO {drive} ---\n")
                 cursor = conn.cursor()
                 db_uuid = get_database_uuid(db_path)
                 now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -356,6 +389,8 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                     path_abs = vtrack["path"]
                     if not os.path.exists(path_abs):
                         self.manager.log(log_paths, f"    [FALTANTE] Arquivo físico não encontrado: {path_abs}")
+                        report_lines.append(f"  [ERRO] Arquivo não encontrado: {vtrack.get('artist')} - {title_v}\n")
+                        tracks_missing_file += 1
                         continue
                     
                     # O manager resolve o caminho relativo baseado no m.db deste disco
@@ -366,6 +401,8 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                     if tr_row:
                         track_id = tr_row[0]
                         self.manager.log(log_paths, f"    ↳ Faixa já existe na coleção (ID {track_id}).", nivel="debug")
+                        tracks_existed += 1
+                        report_lines.append(f"  [EXISTE] {vtrack.get('artist')} - {title_v}\n")
                     else:
                         fname = os.path.basename(path_abs)
                         self.manager.log(log_paths, f"    [TRACK +] Adicionando nova faixa à coleção: {fname}")
@@ -375,6 +412,8 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 1, ?)
                         """, (engine_rel, fname, vtrack["title"] or os.path.splitext(fname)[0], vtrack["artist"], ext, now_ts, now_ts, os.path.getsize(path_abs)))
                         track_id = cursor.lastrowid
+                        tracks_added += 1
+                        report_lines.append(f"  [NOVA] {vtrack.get('artist')} - {title_v}\n")
 
                     # Evita o erro 'Unique Constraint Failed' se a música estiver duplicada na playlist do VDJ
                     if track_id in added_track_ids:
@@ -392,12 +431,30 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                 conn.commit()
                 conn.close()
                 self.manager.log(log_paths, f"--- DISCO {drive} FINALIZADO ---")
+                report_lines.append("\n")
             
+            resumo = [
+                "="*60,
+                "RESUMO DA OPERAÇÃO",
+                f"Novas faixas adicionadas: {tracks_added}",
+                f"Faixas já existentes:    {tracks_existed}",
+                f"Arquivos não encontrados: {tracks_missing_file}",
+                "="*60
+            ]
+            report_content = "\n".join(report_lines) + "\n".join(resumo)
+
             self.update_status(self.txt.get("status_import_complete").format(processed_count=processed_count, num_drives=len(tracks_by_drive)), "green")
             self.manager.log(log_paths, f"Processamento concluído: {processed_count} faixas sincronizadas entre os discos.")
             self.manager.log(log_paths, "=== IMPORTAÇÃO CONCLUÍDA COM SUCESSO ===")
-            messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("success_vdj_import").format(playlist_name=playlist_name))
-            self.destroy()
+
+            ReportWindow(
+                self,
+                title=f"Relatório Importação VDJ: {playlist_name}",
+                header="RESULTADO DA IMPORTAÇÃO",
+                content=report_content,
+                playlist_name=playlist_name,
+                txt=self.txt
+            )
 
         except Exception as e:
             self.manager.log(log_paths, f"ERRO CRÍTICO NA IMPORTAÇÃO: {e}")

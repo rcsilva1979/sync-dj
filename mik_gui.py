@@ -7,6 +7,7 @@ from collections import defaultdict
 from pathlib import Path
 import sqlite3
 import threading
+from datetime import datetime
 
 # Importações do projeto
 from database_utils import localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id
@@ -372,6 +373,13 @@ class MixedInKeyWindow(ctk.CTkToplevel):
 
         def task():
             self.manager.log(log_paths, f"--- INÍCIO DA IMPORTAÇÃO DE HOTCUES [{playlist_name}] ---")
+            overwriting = self.sobrescrever_hotcue.get()
+            report_lines = [
+                f"INÍCIO DA IMPORTAÇÃO (MIK): {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n",
+                f"Playlist: {playlist_name}\n",
+                f"Modo Sobrescrever: {'Ativado' if overwriting else 'Desativado'}\n",
+                "="*60 + "\n\n"
+            ]
             total_tracks = 0
             for db_path, pl_id in db_pl_pairs:
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)
@@ -383,7 +391,6 @@ class MixedInKeyWindow(ctk.CTkToplevel):
 
             updated_tracks_count = 0
             processed_tracks = 0
-            overwriting = self.sobrescrever_hotcue.get()
 
             for db_path, pl_id in db_pl_pairs:
                 drive = self.manager._get_vol_id(db_path)
@@ -484,6 +491,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                             # Usando cursor para que o comando SQL seja registrado no Log de Debug via LoggingCursor
                             cursor.execute("INSERT INTO PerformanceData (trackId, quickCues) VALUES (?, ?) ON CONFLICT(trackId) DO UPDATE SET quickCues = excluded.quickCues", (track_id, sqlite3.Binary(new_blob)))
                             updated_tracks_count += 1
+                            
+                            acao_label = "SOBREESCRITO" if overwriting else "IMPORTADO"
+                            report_lines.append(f"[{acao_label}] {title_full}\n  ↳ {len(final_cues)} hotcues gravados no banco.\n")
                         else:
                             self.manager.log(log_paths, f"  [SKIP] Nenhuma alteração necessária (Banco e Tags já sincronizados).", nivel="debug")
 
@@ -492,20 +502,32 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                 except Exception as e:
                     self.manager.log(log_paths, f"  [ERRO CRÍTICO] Falha no banco {db_path}: {e}")
 
+            if updated_tracks_count == 0:
+                report_lines.append("Nenhuma alteração foi necessária. Todas as músicas já possuem hotcues sincronizados ou não foram encontrados hotcues nas tags.")
+
             self.manager.log(log_paths, f"\n{'='*60}\nIMPORTAÇÃO CONCLUÍDA\nTotal analisado: {processed_tracks}\nAtualizados: {updated_tracks_count}\n{'='*60}")
-            self.after(0, lambda: self.finalizar_importacao(updated_tracks_count))
+            self.after(0, lambda: self.finalizar_importacao(updated_tracks_count, "\n".join(report_lines)))
 
         threading.Thread(target=task, daemon=True).start()
 
-    def finalizar_importacao(self, count):
+    def finalizar_importacao(self, count, report_content):
         """
-        Finaliza o processo de importação, atualiza a UI e exibe uma mensagem de sucesso.
+        Finaliza o processo de importação, atualiza a UI e exibe o relatório de execução.
         """
         self.btn_import.configure(state="normal")
         self.btn_list.configure(state="normal")
         self.combo_playlist.configure(state="normal")
         self.progress_bar.set(1.0)
         
-        msg = f"Importação concluída: {count} músicas atualizadas."
-        self.lbl_status.configure(text=msg, text_color="#00E5A3")
-        messagebox.showinfo("Sucesso", msg)
+        status_msg = f"Importação concluída: {count} músicas atualizadas."
+        self.lbl_status.configure(text=status_msg, text_color="#00E5A3")
+
+        # Abre o relatório padronizado usando o Template ReportWindow
+        ReportWindow(
+            self,
+            title=f"Relatório Mixed In Key: {self.selected_playlist.get()}",
+            header="RELATÓRIO DE SINCRONIZAÇÃO DE HOTCUES",
+            content=report_content,
+            playlist_name=self.selected_playlist.get(),
+            txt=self.txt
+        )

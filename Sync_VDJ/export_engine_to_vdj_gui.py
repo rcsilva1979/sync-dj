@@ -18,6 +18,7 @@ from constants import (VERSAO_ATUAL, APP_NAME, FONT_FAMILY,
                        COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
                        CORNER_RADIUS_NONE)
 from Sync_VDJ.vdj_logic import VDJManager
+from report_gui import ReportWindow
 
 class ImportEngineToVDJWindow(ctk.CTkToplevel):
     """
@@ -161,7 +162,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         # Botão para iniciar o processo de exportação da playlist.
 
         # Botão de Importar
-        btn_import = ctk.CTkButton(
+        self.btn_import = ctk.CTkButton(
             self,
             text=self.txt.get("vdj_export_btn", "Importar Playlist Selecionada"),
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"), corner_radius=CORNER_RADIUS_NONE,
@@ -172,11 +173,11 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             width=350,
             command=self.perform_import
         )
-        btn_import.pack(pady=20)
+        self.btn_import.pack(pady=20)
 
         # Botão para exportar informações detalhadas da playlist do Engine DJ para um arquivo JSON.
         # Botão para Exportar informações da Playlist do Engine DJ
-        btn_export_info = ctk.CTkButton(
+        self.btn_export_info = ctk.CTkButton(
             self,
             text=self.txt.get("export_engine_info_btn", "Exportar Info da Playlist (Engine)"),
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
@@ -187,7 +188,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             width=350,
             command=self.export_engine_playlist_info
         )
-        btn_export_info.pack(pady=5)
+        self.btn_export_info.pack(pady=5)
 
         # Status/Log
         # Label para exibir mensagens de status e feedback ao usuário.
@@ -307,6 +308,10 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         num_fontes = len(sources)
         hybrid_msg = self.txt.get("hybrid_playlist_detected_msg", " (Playlist Híbrida detectada em {num_drives} discos)").format(num_drives=num_fontes) if num_fontes > 1 else ""
         
+        self.btn_import.configure(state="disabled")
+        self.btn_export_info.configure(state="disabled")
+        self.combo_playlist.configure(state="disabled")
+
         try: # type: ignore
             self.update_status(self.txt.get("status_collecting_tracks_vdj", "Coletando faixas de '{playlist_name}'...").format(playlist_name=display_name), "blue")
             
@@ -325,6 +330,8 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             seen_paths = set()
             count_missing = 0
             count_duplicate = 0
+            report_ok = []
+            report_missing = []
 
             for db_path, pl_id in sources: # type: ignore
                 self.manager.log(log_paths, f"Processando banco: {db_path}", nivel="debug")
@@ -344,6 +351,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
                     if not os.path.exists(path_abs):
                         self.manager.log(log_paths, f"  [FALTANTE] Arquivo não existe no disco: {path_abs}")
                         count_missing += 1
+                        report_missing.append(f"  [FALTANTE] {title} -> {path_abs}")
                         continue
 
                     if norm_path in seen_paths:
@@ -352,6 +360,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
                         continue
 
                     self.manager.log(log_paths, f"  [OK] Validada: {title}", nivel="debug")
+                    report_ok.append(f"  [OK] {track.get('artist', 'Unknown')} - {title}")
                     all_tracks.append(track)
                     seen_paths.add(norm_path)
 
@@ -396,14 +405,44 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
                 f.write(pretty_xml.encode("UTF-8"))
                 self.manager.log(log_paths, f"Escrita concluída: {output_file} ({os.path.getsize(output_file)} bytes)")
 
+            # Construção do conteúdo do relatório
+            report_content = (
+                f"RELATÓRIO DE EXPORTAÇÃO ENGINE -> VIRTUAL DJ\n"
+                f"Data: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n"
+                f"Playlist Original: {display_name}\n"
+                f"Arquivo Gerado: {output_file}\n"
+                f"{'='*60}\n\n"
+                f"RESUMO DOS ARQUIVOS:\n"
+                f"  - Exportados com Sucesso: {len(all_tracks)}\n"
+                f"  - Faltantes no Disco:     {count_missing}\n"
+                f"  - Duplicatas Ignoradas:   {count_duplicate}\n\n"
+            )
+
+            if report_ok:
+                report_content += "FAIXAS EXPORTADAS:\n" + "\n".join(report_ok) + "\n\n"
+            
+            if report_missing:
+                report_content += "FAIXAS NÃO ENCONTRADAS (ERROS NO DISCO):\n" + "\n".join(report_missing) + "\n"
+
             self.update_status(self.txt.get("success_playlist_exported_vdj_status", "Sucesso! '{playlist_name}' exportada.").format(playlist_name=display_name), "green")
             self.manager.log(log_paths, "=== EXPORTAÇÃO CONCLUÍDA COM SUCESSO ===")
-            messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("vdj_export_success_msg_detail", "Playlist exportada para o Virtual DJ!\n{num_tracks} músicas processadas.\n{hybrid_msg}\n\nArquivo: {output_file}").format(num_tracks=len(all_tracks), hybrid_msg=hybrid_msg, output_file=output_file))
-            self.destroy() # Fecha a janela após o sucesso
+            
+            ReportWindow(
+                self,
+                title=f"Relatório Exportação VDJ: {display_name}",
+                header="RESULTADO DA EXPORTAÇÃO",
+                content=report_content,
+                playlist_name=display_name,
+                txt=self.txt
+            )
 
         except Exception as e: # type: ignore
             self.update_status(self.txt.get("error_exporting_vdj_generic", "Erro na exportação: {error}").format(error=e), "red")
             messagebox.showerror(self.txt.get("error_export_title", "Erro de Exportação"), self.txt.get("error_generating_xml_vdj", "Não foi possível gerar o arquivo XML:\n{error}").format(error=e))
+        finally:
+            self.btn_import.configure(state="normal")
+            self.btn_export_info.configure(state="normal")
+            self.combo_playlist.configure(state="normal")
 
     def export_engine_playlist_info(self):
         """

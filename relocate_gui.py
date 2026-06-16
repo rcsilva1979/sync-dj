@@ -341,40 +341,36 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         db_pl_pairs = self.playlist_db_map.get(pl_nome)
         if not db_pl_pairs: return
 
-        # Janela de visualização
-        viewer = ctk.CTkToplevel(self)
-        viewer.title(f"Músicas Faltantes: {pl_nome}")
-        viewer.geometry("800x600")
-        viewer.transient(self)
-        viewer.grab_set()
-
-        lbl_header = ctk.CTkLabel(viewer, text=f"Músicas Faltantes em: {pl_nome}", font=ctk.CTkFont(size=16, weight="bold"))
-        lbl_header.pack(pady=10)
-
-        textbox = ctk.CTkTextbox(viewer, width=760, height=500, font=ctk.CTkFont(family="Consolas", size=11))
-        textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
-
+        content_lines = []
         total_missing_global = 0
         for db_path, pl_id in db_pl_pairs:
             drive = self._get_vol_id(db_path)
-            textbox.insert("end", f"--- DRIVE {drive} ---\n")
+            content_lines.append(f"--- DRIVE {drive} ---\n")
             tracks = get_tracks_by_playlist_id(db_path, pl_id)
             missing = [t for t in tracks if not os.path.exists(t.get("caminho_absoluto", ""))]
             
             if not missing:
-                textbox.insert("end", "Todas as músicas localizadas neste drive.\n\n")
+                content_lines.append("Todas as músicas localizadas neste drive.\n\n")
                 continue
             
             total_missing_global += len(missing)
             for t in missing:
                 artist = t.get('artist') or "Unknown"
                 title = t.get('title') or "Untitled"
-                textbox.insert("end", f"FAIXA: {artist} - {title}\n")
-                textbox.insert("end", f"  Path: {t.get('caminho_absoluto')}\n\n")
+                content_lines.append(f"FAIXA: {artist} - {title}\n")
+                content_lines.append(f"  Path: {t.get('caminho_absoluto')}\n\n")
             
         if total_missing_global == 0:
-            textbox.insert("end", "Nenhuma música faltante encontrada em nenhum drive.")
-        textbox.configure(state="disabled")
+            content_lines.append("Nenhuma música faltante encontrada em nenhum drive.")
+
+        ReportWindow(
+            self,
+            title=f"Músicas Faltantes: {pl_nome}",
+            header="Músicas Faltantes",
+            content="".join(content_lines),
+            playlist_name=pl_nome,
+            txt=self.txt
+        )
 
     def iniciar_relocacao(self):
         """

@@ -536,7 +536,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             self.after(0, lambda: [self.status_var.set(msg), self.progress_bar.set(progresso) if progresso is not None else None])
 
         def thread_sync():
-            novas, apagadas, relatorio = self.manager.motor_sincronizacao(self.txt, callback_progresso)
+            novas, apagadas, hotcues_manipulados, relatorio = self.manager.motor_sincronizacao(self.txt, callback_progresso)
             self.after(0, lambda: self.finalizar_sync(novas, apagadas, relatorio))
 
         threading.Thread(target=thread_sync, daemon=True).start()

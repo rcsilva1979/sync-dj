@@ -162,7 +162,7 @@ class LauncherHub(ctk.CTk):
             "font": ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
             "height": 90,
             "corner_radius": CORNER_RADIUS_NONE,
-            "border_width": 1,
+            "border_width": 2,
             "border_color": "#333333"
         }
 
