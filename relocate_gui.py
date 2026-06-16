@@ -29,7 +29,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         Inicializa a janela de realocação de faixas.
         """
 
-        self.title(self.txt["relocate_title"])
+        self.title(f"{self.txt['relocate_title']} ({VERSAO_ATUAL})")
         self.geometry("650x780")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)

@@ -10,6 +10,7 @@ from datetime import datetime
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))) #
 from database_utils import get_playlists_from_db, get_tracks_from_playlist, localizar_bancos_dados_engine, get_database_uuid #
 from engine_sync_app import get_resource_path
+from constants import VERSAO_ATUAL
 from Sync_VDJ.vdj_logic import VDJManager
 
 
@@ -25,7 +26,7 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
         self.master = master # Mantém uma referência à janela pai, se necessário
         """Inicializa a janela de exportação do Engine DJ para o Virtual DJ."""
 
-        self.title(self.txt.get("vdj_export_btn", "Exportar Playlist do Engine para o VDJ"))
+        self.title(f"{self.txt.get('vdj_export_btn', 'Exportar Playlist do Engine para o VDJ')} ({VERSAO_ATUAL})")
         self.geometry("600x580") #
         self.resizable(False, False)
         self.configure(fg_color="#242424")

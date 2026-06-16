@@ -23,7 +23,7 @@ class PopUpAtualizacao(ctk.CTkToplevel):
         
         self.txt = txt
 
-        self.title(txt["update_title"])
+        self.title(f"{txt['update_title']} ({VERSAO_ATUAL})")
         self.geometry("400x250")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
@@ -82,7 +82,7 @@ class SettingsWindow(ctk.CTkToplevel):
         self.master = master
         self.txt = master.txt
 
-        self.title(self.txt.get("settings_title", "Configurações"))
+        self.title(f"{self.txt.get('settings_title', 'Configurações')} ({VERSAO_ATUAL})")
         self.geometry("400x380")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)

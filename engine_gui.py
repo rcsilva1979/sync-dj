@@ -252,7 +252,7 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
             drive_alvo = get_vol_id(banco_alvo)
             
             texto_drives = " | ".join([f"[{d}]" if d == drive_alvo else d for d in drives_encontrados])
-            self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color=COLOR_TEXT_NORMAL)
+            self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
         else: # Nenhum banco válido encontrado
             self.path_db.set("") # Limpa o caminho do banco
 
