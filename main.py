@@ -70,6 +70,76 @@ class PopUpAtualizacao(ctk.CTkToplevel):
         webbrowser.open(GITHUB_RELEASE_URL)
         self.destroy()
 
+# ================= JANELA DE CONFIGURAÇÕES =================
+class SettingsWindow(ctk.CTkToplevel):
+    """
+    Janela para gerenciar preferências globais como Log e Debug.
+    """
+    def __init__(self, master):
+        super().__init__(master)
+        self.master = master
+        self.txt = master.txt
+
+        self.title(self.txt.get("settings_title", "Configurações"))
+        self.geometry("400x380")
+        self.resizable(False, False)
+        self.configure(fg_color=COLOR_BG_DARK)
+
+        self.transient(master)
+        self.grab_set()
+        
+        if IS_WIN and os.path.exists(master.caminho_icone):
+            try:
+                self.iconbitmap(master.caminho_icone)
+            except: pass
+
+        lbl_header = ctk.CTkLabel(self, text=self.txt.get("settings_title", "Configurações").upper(), 
+                                 font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"), text_color="#00E5A3")
+        lbl_header.pack(pady=20)
+
+        # Frame para os switches
+        settings_frame = ctk.CTkFrame(self, fg_color="transparent")
+        settings_frame.pack(pady=10)
+        
+        self.chk_log = ctk.CTkSwitch(
+            settings_frame, text=self.txt.get("log_checkbox", "LOG"),
+            variable=master.log_ativo, command=master.salvar_config_log,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
+        )
+        self.chk_log.pack(anchor="w", pady=8)
+
+        self.chk_debug = ctk.CTkSwitch(
+            settings_frame, text=self.txt.get("debug_checkbox", "DEBUG"),
+            variable=master.debug_ativo, command=master.salvar_config_log,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
+        )
+        self.chk_debug.pack(anchor="w", pady=8)
+
+        self.chk_report = ctk.CTkSwitch(
+            settings_frame, text=self.txt.get("show_report_checkbox", "Exibir relatório ao final"),
+            variable=master.exibir_relatorio, command=master.salvar_config_log,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
+        )
+        self.chk_report.pack(anchor="w", pady=8)
+
+        self.chk_auto_update = ctk.CTkSwitch(
+            settings_frame, text=self.txt.get("auto_update_checkbox", "Verificar atualização automaticamente"),
+            variable=master.auto_update_ativo, command=master.salvar_config_log,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
+        )
+        self.chk_auto_update.pack(anchor="w", pady=8)
+
+        btn_fechar = ctk.CTkButton(self, text=self.txt.get("close_btn", "Fechar"), width=100, corner_radius=CORNER_RADIUS_NONE, command=self.destroy)
+        btn_fechar.pack(pady=20)
+
 class LauncherHub(ctk.CTk):
     """
     Classe principal do aplicativo, atuando como um hub para lançar as diferentes ferramentas.
@@ -99,6 +169,8 @@ class LauncherHub(ctk.CTk):
         # Variáveis de controle para os checkboxes de log e debug, carregando seus estados das configurações.
         self.log_ativo = ctk.BooleanVar(value=self.manager.config.get("log", True))
         self.debug_ativo = ctk.BooleanVar(value=self.manager.config.get("debug", False))
+        self.exibir_relatorio = ctk.BooleanVar(value=self.manager.config.get("show_report", True))
+        self.auto_update_ativo = ctk.BooleanVar(value=self.manager.config.get("auto_update", True))
 
         # Detecta o idioma do sistema e carrega as strings de texto correspondentes.
         self.lang = get_system_lang()
@@ -207,43 +279,35 @@ class LauncherHub(ctk.CTk):
         bottom_frame = ctk.CTkFrame(self, fg_color="transparent")
         bottom_frame.pack(side="bottom", fill="x", pady=(20, 15))
 
-        # Frame para configurações globais de log
-        # Contém os switches para ativar/desativar o log e o modo debug.
-        settings_frame = ctk.CTkFrame(bottom_frame, fg_color="transparent")
-        settings_frame.pack(pady=(0, 10))
-
-        lbl_settings = ctk.CTkLabel(settings_frame, text="Preferências:", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"), text_color=COLOR_TEXT_MUTED)
-        lbl_settings.pack(side="left", padx=10)
-
-        self.chk_log = ctk.CTkSwitch(
-            settings_frame, text=self.txt.get("log_checkbox", "LOG"),
-            variable=self.log_ativo, command=self.salvar_config_log,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
-            fg_color=COLOR_SWITCH_OFF,
-            progress_color="#00E5A3"
-        )
-        self.chk_log.pack(side="right", padx=(0, 5))
-        self.chk_debug = ctk.CTkSwitch(
-            settings_frame, text=self.txt.get("debug_checkbox", "DEBUG"),
-            variable=self.debug_ativo, command=self.salvar_config_log,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
-            fg_color=COLOR_SWITCH_OFF,
-            progress_color="#00E5A3"
-        )
-        self.chk_debug.pack(side="right", padx=(0, 10))
         lbl_footer = ctk.CTkLabel(bottom_frame, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
-        # Exibe o nome e a versão do aplicativo no rodapé.
-        lbl_footer.pack()
+        lbl_footer.pack(side="left", padx=40)
+
+        # Botão de Engrenagem (Configurações) no canto inferior direito
+        try:
+            settings_img_path = get_resource_path(os.path.join("images", "setup.png"))
+            if os.path.exists(settings_img_path):
+                img_gear = ctk.CTkImage(Image.open(settings_img_path), size=(24, 24))
+                self.btn_settings = ctk.CTkButton(bottom_frame, text="", image=img_gear, width=30, height=30, 
+                                                fg_color="transparent", hover_color="#333333", command=self.abrir_configuracoes)
+            else:
+                self.btn_settings = ctk.CTkButton(bottom_frame, text="⚙", font=ctk.CTkFont(size=20), width=30, height=30, 
+                                                fg_color="transparent", hover_color="#333333", command=self.abrir_configuracoes)
+        except Exception:
+            self.btn_settings = ctk.CTkButton(bottom_frame, text="⚙", font=ctk.CTkFont(size=20), width=30, height=30, 
+                                            fg_color="transparent", hover_color="#333333", command=self.abrir_configuracoes)
+
+        self.btn_settings.pack(side="right", padx=40)
 
     def salvar_config_log(self):
-        """Salva as configurações de log no arquivo global."""
         """
         Salva o estado atual dos switches de log e debug no arquivo de configuração global.
         Isso garante que as preferências do usuário sejam persistidas entre as sessões.
         """
         self.manager.save_config({
             "log": self.log_ativo.get(),
-            "debug": self.debug_ativo.get()
+            "debug": self.debug_ativo.get(),
+            "show_report": self.exibir_relatorio.get(),
+            "auto_update": self.auto_update_ativo.get()
         })
 
     def abrir_mirror_sync(self):
@@ -259,6 +323,10 @@ class LauncherHub(ctk.CTk):
         from mik_gui import MixedInKeyWindow
         MixedInKeyWindow(self, self.txt)
 
+    def abrir_configuracoes(self):
+        """Abre a nova janela de configurações."""
+        SettingsWindow(self)
+
     def abrir_sync_vdj(self):
         """Abre a janela da ferramenta "Sync VDJ"."""
         VirtualDJWindow(self, self.txt)
@@ -273,6 +341,8 @@ class LauncherHub(ctk.CTk):
         Verifica se há atualizações disponíveis em uma thread separada.
         Se uma nova versão for encontrada, exibe um pop-up de atualização.
         """
+        if not self.auto_update_ativo.get():
+            return
         versao_github = check_for_updates(VERSAO_ATUAL)
         if versao_github:
             self.after(1000, lambda: PopUpAtualizacao(self, self.txt, versao_github))

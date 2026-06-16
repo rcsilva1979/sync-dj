@@ -678,7 +678,8 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             return
         
         # Abre o relatório detalhado automaticamente ao final
-        self._abrir_janela_relatorio(self.selected_playlist.get(), report, is_dry_run)
+        if self.manager.config.get("show_report", True):
+            self._abrir_janela_relatorio(self.selected_playlist.get(), report, is_dry_run)
         
     def _abrir_janela_relatorio(self, playlist_name, content, is_dry_run=False):
         """

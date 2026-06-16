@@ -447,14 +447,15 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
             self.manager.log(log_paths, f"Processamento concluído: {processed_count} faixas sincronizadas entre os discos.")
             self.manager.log(log_paths, "=== IMPORTAÇÃO CONCLUÍDA COM SUCESSO ===")
 
-            ReportWindow(
-                self,
-                title=f"Relatório Importação VDJ: {playlist_name}",
-                header="RESULTADO DA IMPORTAÇÃO",
-                content=report_content,
-                playlist_name=playlist_name,
-                txt=self.txt
-            )
+            if self.manager.config.get("show_report", True):
+                ReportWindow(
+                    self,
+                    title=f"Relatório Importação VDJ: {playlist_name}",
+                    header="RESULTADO DA IMPORTAÇÃO",
+                    content=report_content,
+                    playlist_name=playlist_name,
+                    txt=self.txt
+                )
 
         except Exception as e:
             self.manager.log(log_paths, f"ERRO CRÍTICO NA IMPORTAÇÃO: {e}")

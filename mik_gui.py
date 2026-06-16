@@ -523,11 +523,12 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.lbl_status.configure(text=status_msg, text_color="#00E5A3")
 
         # Abre o relatório padronizado usando o Template ReportWindow
-        ReportWindow(
-            self,
-            title=f"Relatório Mixed In Key: {self.selected_playlist.get()}",
-            header="RELATÓRIO DE SINCRONIZAÇÃO DE HOTCUES",
-            content=report_content,
-            playlist_name=self.selected_playlist.get(),
-            txt=self.txt
-        )
+        if self.manager.config.get("show_report", True):
+            ReportWindow(
+                self,
+                title=f"Relatório Mixed In Key: {self.selected_playlist.get()}",
+                header="RELATÓRIO DE SINCRONIZAÇÃO DE HOTCUES",
+                content=report_content,
+                playlist_name=self.selected_playlist.get(),
+                txt=self.txt
+            )

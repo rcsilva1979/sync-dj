@@ -560,7 +560,8 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.progress_bar.set(1.0)
         
         # Abre o relatório detalhado em uma nova janela
-        self._abrir_janela_relatorio(self.combo_playlist.get(), relatorio)
+        if self.manager.config.get("show_report", True):
+            self._abrir_janela_relatorio(self.combo_playlist.get(), relatorio)
 
     def _abrir_janela_relatorio(self, playlist_name, content):
         """

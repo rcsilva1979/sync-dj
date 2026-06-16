@@ -427,14 +427,15 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             self.update_status(self.txt.get("success_playlist_exported_vdj_status", "Sucesso! '{playlist_name}' exportada.").format(playlist_name=display_name), "green")
             self.manager.log(log_paths, "=== EXPORTAÇÃO CONCLUÍDA COM SUCESSO ===")
             
-            ReportWindow(
-                self,
-                title=f"Relatório Exportação VDJ: {display_name}",
-                header="RESULTADO DA EXPORTAÇÃO",
-                content=report_content,
-                playlist_name=display_name,
-                txt=self.txt
-            )
+            if self.manager.config.get("show_report", True):
+                ReportWindow(
+                    self,
+                    title=f"Relatório Exportação VDJ: {display_name}",
+                    header="RESULTADO DA EXPORTAÇÃO",
+                    content=report_content,
+                    playlist_name=display_name,
+                    txt=self.txt
+                )
 
         except Exception as e: # type: ignore
             self.update_status(self.txt.get("error_exporting_vdj_generic", "Erro na exportação: {error}").format(error=e), "red")
