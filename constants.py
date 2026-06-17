@@ -4,7 +4,7 @@ import sys
 IS_WIN = sys.platform.startswith('win')
 IS_MAC = sys.platform == 'darwin'
 
-VERSAO_ATUAL = "v1.1.0"
+VERSAO_ATUAL = "v1.2.0"
 APP_NAME = "Sync DJ Tools Suite"
 
 # --- ESTILOS GLOBAIS ---
