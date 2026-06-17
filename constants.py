@@ -15,6 +15,7 @@ FONT_FAMILY = "Consolas"
 COLOR_BG_DARK = "#111111" # Fundo principal
 COLOR_TEXT_NORMAL = "#FFFFFF"
 COLOR_TEXT_MUTED = "#AAAAAA"
+COLOR_ERROR = "#FF5555" # Cor para mensagens de erro
 COLOR_SWITCH_OFF = "#555555"
 
 # Raio do Canto
@@ -48,6 +49,15 @@ STRINGS = {
         "close_btn": "Fechar",
         "collection_name": "- MY COLLECTION", # Nome real da playlist
         "collection_name_display": "- MY COLLECTION", # Nome para exibição
+        "discovery_btn": "Descobrir Músicas (Atualizar Tags & Capas)",
+        "discovery_title": "Shazam Song Discovery",
+        "discovery_folder_label": "Pasta para verificar músicas:",
+        "discovery_include_cover": "Incluir Capa (Artwork)",
+        "discovery_rename_files": "Renomear Arquivos (Artista - Título)",
+        "discovery_overwrite_tags": "Sobrescrever Tags Existentes",
+        "discovery_simulation_mode": "Modo Simulação (Não alterar arquivos)",
+        "discovery_btn_action": "Descobrir e Corrigir Tags",
+        "discovery_status_waiting": "Aguardando início...",
         "confirm_playlist_msg": "A playlist alvo selecionada ({playlist}) é diferente do nome da pasta ({folder}).\n\nIsso irá REESTRUTURAR a playlist '{playlist}' para espelhar a pasta.\n\nDeseja continuar?",
         "confirm_playlist_title": "Confirmar Playlist Raiz",
         "content_title": "Conteúdo: {title}",
@@ -198,6 +208,15 @@ STRINGS = {
         "close_btn": "Close",
         "collection_name": "- MY COLLECTION", # Actual playlist name
         "collection_name_display": "- MY COLLECTION", # Display name
+        "discovery_btn": "Discovery Song (Fix Tags & Covers)",
+        "discovery_title": "Shazam Song Discovery",
+        "discovery_folder_label": "Folder to check songs:",
+        "discovery_include_cover": "Include Cover (Artwork)",
+        "discovery_rename_files": "Rename Files (Artist - Title)",
+        "discovery_overwrite_tags": "Overwrite Existing Tags",
+        "discovery_simulation_mode": "Simulation Mode (Do not change files)",
+        "discovery_btn_action": "Discovery and Fix Tags",
+        "discovery_status_waiting": "Waiting to start...",
         "confirm_playlist_msg": "The selected target playlist ({playlist}) is different from the folder name ({folder}).\n\nThis will RESTRUCTURE the playlist '{playlist}' to mirror the folder.\n\nDo you want to continue?",
         "confirm_playlist_title": "Confirm Root Playlist",
         "content_title": "Content: {title}",
@@ -348,6 +367,15 @@ STRINGS = {
         "close_btn": "Cerrar",
         "collection_name": "- MY COLLECTION", # Nombre real de la playlist
         "collection_name_display": "- MY COLLECTION", # Nombre para mostrar
+        "discovery_btn": "Descobrir Canciones (Corregir Tags & Capas)",
+        "discovery_title": "Shazam Song Discovery",
+        "discovery_folder_label": "Carpeta para verificar canciones:",
+        "discovery_include_cover": "Incluir Portada (Artwork)",
+        "discovery_rename_files": "Renombrar Archivos (Artista - Título)",
+        "discovery_overwrite_tags": "Sobrescribir Etiquetas Existentes",
+        "discovery_simulation_mode": "Modo Simulación (No alterar archivos)",
+        "discovery_btn_action": "Descobrir e Corregir Etiquetas",
+        "discovery_status_waiting": "Esperando inicio...",
         "confirm_playlist_msg": "La lista de reproducción de destino seleccionada ({playlist}) é diferente del nombre de la carpeta ({folder}).\n\nEsto REESTRUCTURARÁ la lista '{playlist}' para reflejar la carpeta.\n\n¿Desea continuar?",
         "confirm_playlist_title": "Confirmar Playlist Raiz",
         "content_title": "Contenido: {title}",

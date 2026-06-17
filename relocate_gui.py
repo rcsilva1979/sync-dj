@@ -448,6 +448,11 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             for raiz, diretorios, arquivos in os.walk(busca_dir):
                 # Pula pastas ocultas (ex: .trash) e de sistema para melhor performance
                 diretorios[:] = [d for d in diretorios if not d.startswith('.') and not d.startswith('$')]
+
+                # Atualiza o status bar com a pasta atual sendo indexada (Feedback dinâmico)
+                curr_dir = os.path.basename(raiz) or raiz
+                self.after(0, lambda d=curr_dir: self.lbl_status.configure(text=f"{self.txt['status_searching_files']} ({d})"))
+
                 for f in arquivos:
                     if f.startswith('.'): continue # Pula arquivos ocultos do Mac
                     

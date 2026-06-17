@@ -287,6 +287,15 @@ class LauncherHub(ctk.CTk):
         )
         btn_relocate.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
+        # Botão 5: Song Discovery (Centralizado na terceira linha ou expandindo o grid)
+        btn_discovery = ctk.CTkButton(
+            grid_frame, text=self.txt["discovery_btn"].replace(" (", "\n("),
+            fg_color=COLOR_BG_DARK, hover_color="#9B59B6", text_color=COLOR_TEXT_NORMAL,
+            command=self.abrir_discovery_song, **button_style
+        )
+        # Para manter o design, vamos colocá-lo em uma nova linha ocupando as duas colunas
+        btn_discovery.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+
         # Rodapé e Configurações
         # Frame para agrupar o rodapé e as configurações de log.
         bottom_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -349,6 +358,11 @@ class LauncherHub(ctk.CTk):
         from relocate_gui import RelocateLostTracksWindow
         RelocateLostTracksWindow(self, self.txt)
         
+    def abrir_discovery_song(self):
+        """Abre a janela da ferramenta 'Shazam Song Discovery'."""
+        from discovery_song_gui import DiscoverySongWindow
+        DiscoverySongWindow(self, self.txt)
+
     def _check_for_updates_thread(self):
         """
         Verifica se há atualizações disponíveis em uma thread separada.

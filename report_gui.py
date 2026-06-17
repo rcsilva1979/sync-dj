@@ -3,7 +3,7 @@ import customtkinter as ctk
 from PIL import Image, ImageTk
 from engine_sync_app import get_resource_path
 from constants import (
-    IS_WIN, APP_NAME, VERSAO_ATUAL, FONT_FAMILY,
+    IS_WIN, APP_NAME, VERSAO_ATUAL, FONT_FAMILY, COLOR_ERROR,
     COLOR_BG_DARK, COLOR_TEXT_MUTED
 )
 
@@ -11,8 +11,8 @@ class ReportWindow(ctk.CTkToplevel):
     """
     Template único e padronizado para exibição de relatórios em todo o ecossistema Sync DJ.
     Centraliza o design, ícones, cabeçalhos e rodapés para manter a identidade visual.
-    """
-    def __init__(self, master, title, header, content, playlist_name="", txt=None):
+    """ 
+    def __init__(self, master, title, header, content=None, log_entries=None, playlist_name="", txt=None):
         super().__init__(master)
         self.txt = txt
         
@@ -58,11 +58,22 @@ class ReportWindow(ctk.CTkToplevel):
             self, 
             width=860, 
             height=580, 
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11)
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            state="normal" # Habilita para inserção com tags
         )
         self.textbox.pack(padx=20, pady=(0, 20), fill="both", expand=True)
         
-        self.textbox.insert("end", content)
+        # Configurações de tags para cores (Agora após a criação da textbox)
+        self.textbox.tag_config("error", foreground=COLOR_ERROR)
+
+        if content: # For older tools that pass a single string content
+            self.textbox.insert("end", content + "\n")
+        elif log_entries: # For newer tools that pass a list of (text, tag) tuples
+            for line_parts in log_entries:
+                for text_part, tag_part in line_parts:
+                    self.textbox.insert("end", text_part, tag_part)
+                self.textbox.insert("end", "\n") # Add newline after each complete line
+
         self.textbox.configure(state="disabled")
 
         # Rodapé Unificado
