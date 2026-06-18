@@ -296,14 +296,21 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         )
 
         # Verificação robusta de FFmpeg
-        # Tenta localizar no PATH (já atualizado acima) ou constrói o caminho direto
-        ffmpeg_path = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+        ffmpeg_executable_name = "ffmpeg.exe" if IS_WIN else "ffmpeg"
+        ffmpeg_path = None
+
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # Prioriza o FFmpeg empacotado no executável
+            bundled_ffmpeg_path = os.path.join(sys._MEIPASS, ffmpeg_executable_name)
+            if os.path.exists(bundled_ffmpeg_path):
+                ffmpeg_path = bundled_ffmpeg_path
         
-        if not ffmpeg_path and getattr(sys, 'frozen', False):
-            ffmpeg_path = os.path.join(sys._MEIPASS, "ffmpeg.exe" if IS_WIN else "ffmpeg")
+        # Se não encontrou o empacotado, tenta encontrar no PATH do sistema
+        if not ffmpeg_path:
+            ffmpeg_path = shutil.which(ffmpeg_executable_name)
 
         if not ffmpeg_path or not os.path.exists(ffmpeg_path):
-            self.log(f"❌ Erro crítico: FFmpeg não encontrado. Verifique se o antivírus não bloqueou o processo.")
+            self.log(f"❌ Erro crítico: FFmpeg não encontrado em '{ffmpeg_path or 'caminho desconhecido'}'. Verifique se o antivírus não bloqueou o processo.")
             return
 
         if not os.path.exists(folder):
