@@ -295,22 +295,31 @@ class DiscoverySongWindow(ctk.CTkToplevel):
             tool_name="DISCOVERY"
         )
 
-        # Verificação robusta de FFmpeg
-        ffmpeg_executable_name = "ffmpeg.exe" if IS_WIN else "ffmpeg"
+        # Verificação exaustiva de FFmpeg
+        # Tenta nomes comuns (com e sem .exe) para cobrir Windows e Mac empacotados
+        ffmpeg_names = ["ffmpeg.exe", "ffmpeg"]
         ffmpeg_path = None
 
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-            # Prioriza o FFmpeg empacotado no executável
-            bundled_ffmpeg_path = os.path.join(sys._MEIPASS, ffmpeg_executable_name)
-            if os.path.exists(bundled_ffmpeg_path):
-                ffmpeg_path = bundled_ffmpeg_path
+            # No modo compilado, verifica primeiro dentro da pasta raiz do bundle (onde injetamos via release.yml)
+            for name in ffmpeg_names:
+                candidate = os.path.join(sys._MEIPASS, name)
+                if os.path.exists(candidate):
+                    ffmpeg_path = candidate
+                    # Reforça a inclusão do bundle no PATH caso não tenha ocorrido no import
+                    if sys._MEIPASS not in os.environ["PATH"]:
+                        os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ["PATH"]
+                    break
         
-        # Se não encontrou o empacotado, tenta encontrar no PATH do sistema
+        # Se não encontrou no bundle ou se não estiver congelado, tenta o sistema (fallback)
         if not ffmpeg_path:
-            ffmpeg_path = shutil.which(ffmpeg_executable_name)
+            for name in ffmpeg_names:
+                ffmpeg_path = shutil.which(name)
+                if ffmpeg_path: break
 
         if not ffmpeg_path or not os.path.exists(ffmpeg_path):
-            self.log(f"❌ Erro crítico: FFmpeg não encontrado em '{ffmpeg_path or 'caminho desconhecido'}'. Verifique se o antivírus não bloqueou o processo.")
+            loc = sys._MEIPASS if getattr(sys, 'frozen', False) else "PATH"
+            self.log(f"❌ Erro crítico: FFmpeg não encontrado em '{loc}'. Verifique se o antivírus não bloqueou o processo.", tag="error")
             return
 
         if not os.path.exists(folder):
