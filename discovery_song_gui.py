@@ -298,13 +298,11 @@ class DiscoverySongWindow(ctk.CTkToplevel):
 
         # Verificação robusta de FFmpeg
         ffmpeg_path = shutil.which("ffmpeg")
-        if not ffmpeg_path:
-             # Tenta verificar se ele existe na pasta temporária do PyInstaller
-             if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-                 ffmpeg_path = os.path.join(sys._MEIPASS, "ffmpeg.exe" if IS_WIN else "ffmpeg")
-        
-        if not ffmpeg_path or not os.path.exists(ffmpeg_path):
-            self.log(f"❌ Erro crítico: FFmpeg não encontrado em {sys._MEIPASS if getattr(sys, 'frozen', False) else 'PATH'}. O processamento não pode continuar.")
+        if not ffmpeg_path and getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            ffmpeg_path = os.path.join(sys._MEIPASS, "ffmpeg.exe" if IS_WIN else "ffmpeg")
+
+        if not ffmpeg_path or (not os.path.exists(ffmpeg_path) and not shutil.which("ffmpeg")):
+            self.log(f"❌ Erro crítico: FFmpeg não encontrado. Verifique se o antivírus não bloqueou o processo.")
             return
 
         if not os.path.exists(folder):
