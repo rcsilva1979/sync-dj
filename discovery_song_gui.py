@@ -12,23 +12,6 @@ warnings.filterwarnings(
     category=DeprecationWarning
 )
 
-import shutil
-
-# Detecta plataforma antes do setup do FFmpeg para evitar NameError em modo congelado
-_IS_WIN = sys.platform.startswith('win')
-
-# Tenta carregar o FFmpeg via static-ffmpeg antes de importar o Shazam
-try:
-    if getattr(sys, 'frozen', False):
-        if hasattr(sys, '_MEIPASS'):
-            # Garante que a pasta temporária do executável esteja no topo do PATH
-            os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ["PATH"]
-    else:
-        import static_ffmpeg
-        static_ffmpeg.add_paths()
-except ImportError:
-    pass
-
 import asyncio
 import threading
 import httpx
@@ -36,6 +19,8 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 from shazamio import Shazam
+import shutil # Keep shutil for later use
+import imageio_ffmpeg # New import
 from mutagen.easyid3 import EasyID3
 from mutagen import File
 from mutagen.id3 import ID3, TIT2, TPE1, APIC
@@ -296,26 +281,45 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         )
 
         # Use imageio_ffmpeg para obter o caminho do executável FFmpeg
+        final_ffmpeg_path = None
         try:
-            ffmpeg_path = imageio_ffmpeg.get_ffmpeg_exe()
-            # Garante que o diretório do FFmpeg esteja no PATH para shutil.which e subprocess
-            ffmpeg_dir = os.path.dirname(ffmpeg_path)
-            if ffmpeg_dir not in os.environ["PATH"]:
-                os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ["PATH"]
-            self.log(f"✅ FFmpeg encontrado via imageio_ffmpeg: {ffmpeg_path}")
+            source_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
+            
+            # O shazamio procura por um executável chamado exatamente 'ffmpeg' (ou 'ffmpeg.exe') no PATH.
+            standard_name = "ffmpeg.exe" if IS_WIN else "ffmpeg"
+            # Usamos abspath para garantir que o Windows não se perca com caminhos relativos
+            storage_dir_abs = os.path.abspath(self.manager.storage_dir)
+            final_ffmpeg_path = os.path.join(storage_dir_abs, standard_name)
+            
+            if not os.path.exists(final_ffmpeg_path):
+                shutil.copy2(source_ffmpeg, final_ffmpeg_path)
+                
+            # Forçamos a atualização do PATH no início da variável de ambiente
+            # Isso garante que este ffmpeg tenha prioridade absoluta
+            paths = os.environ.get("PATH", "").split(os.pathsep)
+            if storage_dir_abs not in paths:
+                os.environ["PATH"] = storage_dir_abs + os.pathsep + os.environ["PATH"]
+            
+            # Verificação diagnóstica: O Python realmente consegue achar o comando agora?
+            verified_path = shutil.which("ffmpeg")
+            if verified_path:
+                self.log(f"✅ FFmpeg pronto para uso: {verified_path}")
+            else:
+                self.log(f"⚠️ Alerta: FFmpeg copiado mas não localizado no PATH do sistema.", tag="error")
+
         except Exception as e:
             self.log(f"❌ Erro ao obter FFmpeg via imageio_ffmpeg: {e}", tag="error")
-            ffmpeg_path = None # Força a falha na próxima verificação
+            final_ffmpeg_path = None
 
-        if not ffmpeg_path or not os.path.exists(ffmpeg_path):
-            self.log(f"❌ Erro crítico: FFmpeg não encontrado. Caminho: '{ffmpeg_path}'. Verifique se o antivírus não bloqueou o processo.", tag="error")
+        if not final_ffmpeg_path or not os.path.exists(final_ffmpeg_path):
+            self.log(f"❌ Erro crítico: FFmpeg não encontrado em '{final_ffmpeg_path}'. Verifique se o antivírus não bloqueou o processo.", tag="error")
             return
 
         if not os.path.exists(folder):
             self.log(f"❌ Erro: Pasta '{folder}' não encontrada.")
             return
 
-        shazam = Shazam()
+        shazam = Shazam() # O Shazamio espera que o FFmpeg esteja no PATH, não no construtor
         self.log(f"--- Iniciando verificação de tags na pasta: {folder} ---")
         
         # Busca recursiva de arquivos
