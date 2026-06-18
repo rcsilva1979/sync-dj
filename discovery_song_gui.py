@@ -159,7 +159,7 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.master = master
 
         self.title(f"{self.txt['discovery_title']} ({VERSAO_ATUAL})")
-        self.geometry("650x550")
+        self.geometry("650x590")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
 
@@ -174,6 +174,7 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.rename_files = ctk.BooleanVar(value=True)
         self.overwrite_tags = ctk.BooleanVar(value=False)
         self.simulation_mode = ctk.BooleanVar(value=False)
+        self.start_offset_var = ctk.StringVar(value="Início")
         self.final_ffmpeg_path: str | None = None
 
         self.log_paths = None
@@ -245,6 +246,29 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         ctk.CTkSwitch(frame_switches, text=self.txt["discovery_overwrite_tags"], variable=self.overwrite_tags, **sw_style).pack(anchor="w", pady=4)
         ctk.CTkSwitch(frame_switches, text=self.txt["discovery_simulation_mode"], variable=self.simulation_mode, **sw_style).pack(anchor="w", pady=4)
 
+        # Seletor de Offset Inicial
+        frame_offset = ctk.CTkFrame(self, fg_color="transparent")
+        frame_offset.pack(fill="x", padx=40, pady=(0, 5))
+
+        ctk.CTkLabel(
+            frame_offset,
+            text="Iniciar análise a partir de:",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=COLOR_TEXT_NORMAL
+        ).pack(side="left", padx=(0, 10))
+
+        ctk.CTkSegmentedButton(
+            frame_offset,
+            values=["Início", "30s", "1min", "2min"],
+            variable=self.start_offset_var,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            selected_color="#9B59B6",
+            selected_hover_color="#8E44AD",
+            unselected_color="#2a2a2a",
+            unselected_hover_color="#3a3a3a",
+            corner_radius=4
+        ).pack(side="left")
+
         # Progresso
         lbl_status = ctk.CTkLabel(self, textvariable=self.progress_text, font=ctk.CTkFont(family=FONT_FAMILY, size=12))
         lbl_status.pack(padx=40, pady=(15, 2), anchor="w")
@@ -257,13 +281,23 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.btn_start = ctk.CTkButton(self, text=self.txt["discovery_btn_action"], 
                                        font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
                                        height=45, fg_color="#9B59B6", hover_color="#8E44AD", text_color="#FFFFFF",
-                                       corner_radius=CORNER_RADIUS_NONE, command=self.start_thread)
+                                       corner_radius=CORNER_RADIUS_NONE, command=self.start_thread,
+                                       state="disabled")
         self.btn_start.pack(pady=20, padx=40, fill="x")
+
+        # Habilita o botão somente quando uma pasta for selecionada
+        self.folder_path.trace_add("write", self._on_folder_changed)
+        self._on_folder_changed()  # aplica estado inicial (desabilitado)
 
     def browse_folder(self):
         folder = filedialog.askdirectory()
         if folder:
             self.folder_path.set(os.path.normpath(folder))
+
+    def _on_folder_changed(self, *_):
+        """Habilita ou desabilita o botão de acordo com a pasta selecionada."""
+        has_folder = bool(self.folder_path.get().strip())
+        self.btn_start.configure(state="normal" if has_folder else "disabled")
 
     def log(self, message: str | list[tuple[str, str | None]], tag: str | None = None):
         """Registra no arquivo de log (se ativo) e acumula para o relatório final."""
@@ -301,6 +335,16 @@ class DiscoverySongWindow(ctk.CTkToplevel):
             
             # Define variável de ambiente para bibliotecas que a consultam
             os.environ["FFMPEG_BINARY"] = ffmpeg_exe
+            
+            # Configura pydub explicitamente para usar o mesmo ffmpeg
+            # (recognize_song() usa pydub internamente para converter o áudio)
+            try:
+                from pydub import AudioSegment
+                AudioSegment.converter = ffmpeg_exe
+                AudioSegment.ffmpeg = ffmpeg_exe
+            except Exception:
+                pass
+            
             self.log(f"✅ FFmpeg configurado via PATH: {ffmpeg_exe}")
         except Exception as e:
             self.log(f"⚠️ Erro ao localizar FFmpeg via imageio: {e}", tag="error")
@@ -332,58 +376,163 @@ class DiscoverySongWindow(ctk.CTkToplevel):
                 txt=self.txt
             ))
 
-    async def try_identify(self, shazam: Shazam, file_path: str, filename: str):
-        """Identifica a música usando a API moderna do Shazamio.
-
-        A versão legada `recognize_song()` depende de `pydub` e pode tentar chamar
-        `ffprobe`, que não está presente no bundle atual. A API `recognize()` usa o
-        # core nativo do `shazamio_core`, então evita esse ponto de falha no Windows.
+    def _get_audio_duration(self, file_path: str) -> float:
+        """Retorna a duração em segundos usando ffmpeg (stderr parsing).
+        
+        Não depende do ffprobe, que não está presente no bundle imageio_ffmpeg.
         """
+        import re
         try:
-            # Detalhes para diagnóstico profundo
-            abs_path = os.path.abspath(file_path)
             ffmpeg_exe = self.final_ffmpeg_path or "ffmpeg"
-            # O Shazamio extrai os primeiros segundos do áudio para gerar a assinatura.
-            cmd_simulado = f'"{ffmpeg_exe}" -i "{abs_path}" -t 12 -f s16le -ac 1 -ar 16000 -'
-
-            self.log(f"🛠️ [DEBUG] Executando recognize\n  Arquivo: {abs_path}\n  Comando Aproximado: {cmd_simulado}", tag="debug")
-
-            # Tenta identificação direta pelo caminho.
-            return await shazam.recognize(file_path)
-        except FailedDecodeJson as e:
-            self.log(
-                f"⚠️ Resposta inválida da API do Shazam para {filename}: {e}",
-                tag="error"
+            cmd = [
+                ffmpeg_exe, "-i", file_path,
+                "-f", "null", "-"
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=15,
+                creationflags=subprocess.CREATE_NO_WINDOW if IS_WIN else 0
             )
-            self.log(
-                "ℹ️ Isso normalmente indica bloqueio de rede, resposta HTML/403/429, ou instabilidade da API.",
-                tag="error"
+            # ffmpeg imprime duração no stderr: "Duration: HH:MM:SS.ms"
+            match = re.search(r"Duration:\s*(\d+):(\d+):([\d.]+)", result.stderr)
+            if match:
+                h, m, s = int(match.group(1)), int(match.group(2)), float(match.group(3))
+                return h * 3600 + m * 60 + s
+        except Exception:
+            pass
+        return 0.0
+
+    def _extract_audio_snippet(self, file_path: str, offset_seconds: int, duration: int = 12) -> str | None:
+        """Extrai um trecho de áudio como arquivo WAV temporário e retorna o caminho.
+        
+        O shazamio.recognize() aceita caminhos de arquivo; raw PCM bytes são
+        rejeitados internamente com 'FFmpeg not found or failed to convert audio'.
+        O arquivo temp será apagado após uso pelo chamador.
+        """
+        import tempfile
+        try:
+            ffmpeg_exe = self.final_ffmpeg_path or "ffmpeg"
+            # Cria arquivo temp com extensão .wav
+            tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+            tmp_path = tmp.name
+            tmp.close()
+
+            cmd = [
+                ffmpeg_exe,
+                "-ss", str(offset_seconds),  # seek para o offset
+                "-i", file_path,
+                "-t", str(duration),           # duração do trecho
+                "-f", "wav",                   # container WAV (com cabeçalho)
+                "-acodec", "pcm_s16le",        # 16-bit PCM
+                "-ac", "1",                    # mono
+                "-ar", "16000",                # 16 kHz (exact format shazamio needs)
+                "-y",                          # sobrescreve sem perguntar
+                tmp_path,
+            ]
+            result = subprocess.run(
+                cmd, capture_output=True, timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW if IS_WIN else 0
             )
-            return {}
-        except (FileNotFoundError, OSError) as e:
-            # Se o caminho falhar, tentamos ler os bytes do arquivo.
+            if result.returncode == 0 and os.path.getsize(tmp_path) > 0:
+                return tmp_path
+            # Limpa arquivo vazio/falho
             try:
-                if not os.path.exists(file_path): # type: ignore
-                    self.log(f"❌ Arquivo não encontrado: {filename}", tag="error")
-                    return {}
-                
-                with open(file_path, 'rb') as f:
-                    content = f.read()
-                
-                if not content:
-                    self.log(f"⚠️ Arquivo vazio ou ilegível: {filename}")
-                    return {}
-
-                ffmpeg_exe = self.final_ffmpeg_path or "ffmpeg"
-                cmd_buffer_simulado = f'"{ffmpeg_exe}" -i pipe:0 -t 12 -f s16le -ac 1 -ar 16000 -'
-                self.log(f"🔄 [DEBUG] Tentando via buffer (stdin pipe):\n  Comando: {cmd_buffer_simulado}", tag="debug")
-                
-                return await shazam.recognize(content)
-            except Exception as ex:
-                self.log(f"⚠️ Falha na detecção alternativa de {filename}: {ex}", tag="error")
+                os.unlink(tmp_path)
+            except Exception:
+                pass
+            return None
         except Exception as e:
-            self.log(f"⚠️ Erro na detecção de {filename}: {e}", tag="error")
-            
+            self.log(f"⚠️ [DEBUG] Erro ao extrair trecho no offset {offset_seconds}s: {e}", tag="debug")
+            return None
+
+    async def try_identify(self, shazam: Shazam, file_path: str, filename: str):
+        """Identifica a música tentando múltiplos pontos do áudio.
+
+        Estratégia de múltiplos offsets:
+        - Tenta o arquivo completo (método padrão do shazamio)
+        - Se falhar, extrai trechos de 12s em: 60s, 90s, 120s, 150s
+        - Isso captura músicas com intros longas ou transições de DJ
+        """
+        abs_path = os.path.abspath(file_path)
+        ffmpeg_exe = self.final_ffmpeg_path or "ffmpeg"
+
+        # Determina o offset inicial escolhido pelo usuário na UI
+        _offset_map = {"Início": 0, "30s": 30, "1min": 60, "2min": 120}
+        user_start_offset = _offset_map.get(self.start_offset_var.get(), 0)
+
+        # --- Tentativa 1: início escolhido pelo usuário ---
+        # recognize_song() usa pydub internamente, que precisa do ffmpeg para
+        # decodificar MP3/M4A. Como o pydub não localiza o ffmpeg bundled com
+        # confiabilidade, convertemos SEMPRE via nosso ffmpeg para WAV primeiro.
+        # Carregamos com AudioSegment.from_wav() (que usa wave nativo do Python, sem ffprobe).
+        self.log(f"🛠️ [DEBUG] Tentativa 1 - Extraindo WAV (offset {user_start_offset}s)", tag="debug")
+        tmp_path = self._extract_audio_snippet(abs_path, user_start_offset)
+        if tmp_path:
+            try:
+                from pydub import AudioSegment
+                audio_segment = AudioSegment.from_wav(tmp_path)
+                result = await shazam.recognize_song(audio_segment)
+                if result and 'track' in result:
+                    self.log(f"✅ [DEBUG] Identificado na tentativa 1 (offset {user_start_offset}s)", tag="debug")
+                    return result
+            except FailedDecodeJson as e:
+                self.log(f"⚠️ Resposta inválida da API do Shazam para {filename}: {e}", tag="error")
+                self.log("ℹ️ Isso normalmente indica bloqueio de rede, resposta HTML/403/429, ou instabilidade da API.", tag="error")
+                return {}
+            except Exception as e:
+                self.log(f"⚠️ [DEBUG] Offset {user_start_offset}s falhou: {e}", tag="debug")
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
+        # --- Tentativas seguintes: outros offsets via ffmpeg ---
+        # Obtém duração do arquivo para não ir além do fim
+        duration_secs = self._get_audio_duration(abs_path)
+        self.log(f"🕐 [DEBUG] Duração detectada: {duration_secs:.1f}s", tag="debug")
+
+        # Gera lista de offsets complementares (exclui o já tentado)
+        all_offsets = [0, 30, 60, 90, 120, 150]
+        candidate_offsets = [o for o in all_offsets if o != user_start_offset]
+        # Filtra offsets que estão além da duração do arquivo
+        valid_offsets = [
+            o for o in candidate_offsets
+            if duration_secs == 0 or o + 10 < duration_secs
+        ]
+
+        for attempt_num, offset in enumerate(valid_offsets, start=2):
+            self.log(
+                f"🔄 [DEBUG] Tentativa {attempt_num} - Offset: {offset}s",
+                tag="debug"
+            )
+            tmp_path = self._extract_audio_snippet(abs_path, offset)
+
+            if not tmp_path:
+                self.log(f"⚠️ [DEBUG] Não foi possível extrair trecho em {offset}s", tag="debug")
+                continue
+
+            try:
+                from pydub import AudioSegment
+                audio_segment = AudioSegment.from_wav(tmp_path)
+                result = await shazam.recognize_song(audio_segment)
+                if result and 'track' in result:
+                    self.log(f"✅ [DEBUG] Identificado no offset {offset}s (tentativa {attempt_num})", tag="debug")
+                    return result
+                # Pequena pausa para não sobrecarregar a API
+                await asyncio.sleep(1.0)
+            except FailedDecodeJson as e:
+                self.log(f"⚠️ [DEBUG] Resposta inválida no offset {offset}s: {e}", tag="debug")
+                await asyncio.sleep(2.0)
+                continue
+            except Exception as e:
+                self.log(f"⚠️ [DEBUG] Erro no offset {offset}s: {e}", tag="debug")
+                continue
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
         return {}
 
     async def process_logic(self):
@@ -448,8 +597,18 @@ class DiscoverySongWindow(ctk.CTkToplevel):
             current_folder = os.path.dirname(file_path)
             # Atualiza Barra de Progresso e Label
             percent = ((i + 1) / total_files) * 100
-            self.after(0, lambda p=percent/100: self.progress_bar.set(p))
-            self.progress_text.set(f"Processando {i+1} de {total_files}: {filename}")
+            def update_ui(p=percent/100, msg=f"Processando {i+1} de {total_files}: {filename}"):
+                try:
+                    if self.winfo_exists():
+                        if self.progress_bar.winfo_exists():
+                            self.progress_bar.set(p)
+                        self.progress_text.set(msg)
+                except Exception:
+                    pass
+            try:
+                self.after(0, update_ui)
+            except Exception:
+                pass
 
             title, artist = get_song_tags(file_path)
             
