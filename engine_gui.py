@@ -105,11 +105,6 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.detectar_banco_por_drive() # Tenta localizar o banco e carregar playlists no início
         self.validar_campos() # Validação inicial
 
-    def _check_for_updates_thread(self):
-        versao_github = check_for_updates(VERSAO_ATUAL)
-        if versao_github:
-            self.after(1000, lambda: PopUpAtualizacao(self, self.txt, versao_github))
-
     def construir_ui(self):
         """
         Cria e organiza todos os elementos da interface gráfica da janela principal.

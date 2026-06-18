@@ -78,10 +78,8 @@ def versao_maior(versao_nova: str, versao_atual: str) -> bool:
 def get_system_lang():
     """Detecta o idioma do sistema e retorna o código correspondente."""
     # --- INICIO: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
-    # Altere o valor abaixo para "pt", "en" ou "es" para forçar o idioma
-    forced_lang = "pt" 
-    if forced_lang in STRINGS:
-        return forced_lang
+    # Para forçar um idioma, descomente as linhas abaixo e defina "pt", "en" ou "es"
+    # forced_lang = "pt"
     # --- FIM: AJUSTE PARA TESTE DE IDIOMA (REMOVER NO FUTURO) ---
     try:
         if sys.platform.startswith('win'):
@@ -178,16 +176,12 @@ def _track_tem_hotcue_real(blob) -> bool:
     """
     if blob is None:
         return False
-
-    if isinstance(blob, memoryview):
+    
+    if isinstance(blob, memoryview): # type: ignore
         blob = bytes(blob)
 
-    # Heurística rápida: assinatura de blob sem hotcue real
-    if b"\x63\x60\x00\x03\x0e\x86\xfd\x1f\x18" in blob:
-        return False
-
     try:
-        data = _maybe_decompress(blob)
+        data = _maybe_decompress(blob) # type: ignore
     except Exception:
         return False
 
@@ -196,7 +190,7 @@ def _track_tem_hotcue_real(blob) -> bool:
     # Slot vazio: label_len=0 → apenas 1+8=9 bytes; slot ativo: 1+len+8+4 bytes
     if len(data) < 8:
         return False
-
+    
     offset = 8   # pula o header de 8 bytes
     for _ in range(8):   # max 8 slots
         if offset >= len(data):
@@ -204,7 +198,7 @@ def _track_tem_hotcue_real(blob) -> bool:
         label_len = data[offset]
         offset += 1
         if label_len == 0:
-            if offset + 8 <= len(data):
+            if offset + 8 <= len(data): # type: ignore
                 offset += 8  # pula o double de posição
             continue
         if offset + label_len + 8 > len(data):
@@ -212,7 +206,7 @@ def _track_tem_hotcue_real(blob) -> bool:
         offset += label_len
         if offset + 8 > len(data):
             break
-        pos = _struct.unpack(">d", data[offset: offset + 8])[0]
+        pos = _struct.unpack(">d", data[offset: offset + 8])[0] # type: ignore
         offset += 8
         if offset + 4 <= len(data):
             offset += 4  # cor
@@ -411,7 +405,7 @@ class SyncManager:
             if not modo_sobrescrever:
                 cursor.execute("SELECT quickCues FROM PerformanceData WHERE trackId = ? LIMIT 1", (track_id,))
                 row_pd = cursor.fetchone()
-                if _track_tem_hotcue_real(row_pd[0] if row_pd else None): return False
+                if _track_tem_hotcue_real(row_pd[0] if row_pd else None): return False # type: ignore
             progress_callback(STRINGS[get_system_lang()]["status_hotcue"].format(filename=os.path.basename(caminho_completo)), None)
             dados_mp3 = read_mp3(_Path(caminho_completo))
             hotcues = normalize_hotcues(dados_mp3.get("hotcues", []))
@@ -427,6 +421,22 @@ class SyncManager:
         except Exception as e:
             self.log(log_paths, f"    [HOTCUE] ERRO em {os.path.basename(caminho_completo)}: {e}")
             return False
+
+    def find_track_id_by_name(self, cursor, artist, title):
+        """
+        Tenta encontrar o ID de uma faixa no banco de dados pelo artista e título.
+        Retorna o trackId se encontrado, None caso contrário.
+        """
+        if not artist or not title:
+            return None
+        
+        cursor.execute(
+            "SELECT id FROM Track WHERE LOWER(artist) = LOWER(?) AND LOWER(title) = LOWER(?) LIMIT 1",
+            (artist, title)
+        )
+        row = cursor.fetchone()
+        return row[0] if row else None
+
 
     def verificar_tracks_faltantes_na_pasta(self, cursor, pasta_base, db_path, log_paths):
         self.log(log_paths, f"--- VERIFICACAO: Tracks faltantes na pasta [{os.path.normpath(pasta_base)}] ---")
@@ -446,7 +456,7 @@ class SyncManager:
             if not path:
                 continue
             
-            # Resolve o caminho absoluto do arquivo guardado no banco (lida com ../ e caminhos diretos)
+            # Resolve o caminho absoluto do arquivo guardado no banco (lida com ../ e caminhos diretos) # type: ignore
             path_normalizado = path.replace("\\", "/")
             caminho_full_db = os.path.join(engine_library_dir, path_normalizado)
             caminho_abs_db = os.path.normpath(os.path.abspath(caminho_full_db))
@@ -511,7 +521,7 @@ class SyncManager:
                 self.log(log_paths, f"[BACKUP] Backup criado: {backup_name}.zip")
             except Exception as e:
                 self.log(log_paths, f"[BACKUP] ERRO ao criar backup: {e}")
-        
+
         for raiz, _, arquivos in os.walk(pasta):
             arquivos[:] = [a for a in arquivos if not a.startswith('.')] # Ignorar arquivos ocultos
             for arquivo in arquivos:
@@ -531,7 +541,7 @@ class SyncManager:
 
             cursor.execute("SELECT uuid FROM Information LIMIT 1")
             row = cursor.fetchone() # type: ignore
-            db_uuid = row[0] if row else "" # type: ignore
+            db_uuid = row[0] if row else ""
             data_atual = int(datetime.now().timestamp())   # para campos dateCreated/dateAdded (int)
             lastEditTime_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # para lastEditTime (string ISO)
 
@@ -565,10 +575,10 @@ class SyncManager:
                 )
                 row_existente = cursor.fetchone()
 
-                if row_existente: # type: ignore
-                    track_id_existente = row_existente[0] # type: ignore
+                if row_existente:
+                    track_id_existente = row_existente[0]
 
-                    #  BUSCAR path atual no banco
+                    # BUSCAR path atual no banco
                     cursor.execute("SELECT path FROM Track WHERE id = ?", (track_id_existente,))
                     row_path = cursor.fetchone() # type: ignore
 
@@ -652,7 +662,7 @@ class SyncManager:
             self.log(log_paths, "--- FASE 2: Construcao da Arvore de Playlists ---")
             
             tracks_orfas = []
-
+            
             # Busca a playlist raiz preferindo a que já estiver persistida se houver duplicatas
             cursor.execute("SELECT id FROM Playlist WHERE title = ? AND (parentListId = 0 OR parentListId IS NULL) ORDER BY isPersisted DESC", (nome_colecao,))
             row = cursor.fetchone() # type: ignore
@@ -667,7 +677,7 @@ class SyncManager:
                 self.log(log_paths, f"  [PLAYLIST +] Criada raiz: '{nome_colecao}' (id={my_collection_id})")
                 report_lines.append(f"[PLAYLIST] Raiz processada: {nome_colecao}")
             else:
-                my_collection_id = row[0] # type: ignore
+                my_collection_id = row[0]
                 self.log(log_paths, f"  [PLAYLIST] Usando playlist existente: '{nome_colecao}' (id={my_collection_id})")
                 
                 # PONTO CHAVE: Força isPersisted=1 e isExplicitlyExported=1. Sem isso, o Engine DJ 
@@ -680,7 +690,7 @@ class SyncManager:
 
                 if descendants:
                     placeholders = ','.join('?' * len(descendants))
-                    cursor.execute(f"DELETE FROM PlaylistEntity WHERE listId IN ({placeholders})", descendants)
+                    cursor.execute(f"DELETE FROM PlaylistEntity WHERE listId IN ({placeholders})", descendants) # type: ignore
                     cursor.execute(f"DELETE FROM Playlist WHERE id IN ({placeholders})", descendants) # type: ignore
                     self.log(log_paths, f"  [PLAYLIST] Removidas {len(descendants)} sub-playlist(s) antigas")
 
@@ -692,7 +702,7 @@ class SyncManager:
                     FROM PlaylistEntity pe
                     JOIN Track t ON t.id = pe.trackId
                     WHERE pe.listId = ?
-                """, (my_collection_id,)) # type: ignore
+                """, (my_collection_id,))
                 tracks_no_banco = cursor.fetchall()
 
                 # Monta conjunto dos filenames presentes no disco agora
@@ -710,7 +720,7 @@ class SyncManager:
                     if fname_lower and fname_lower not in arquivos_no_disco:
                         tracks_orfas.append((tid, tpath, tfname)) # type: ignore
                         self.log(log_paths,
-                            f"  [ORFA] Track id={tid} nao encontrada no disco, sera preservada na playlist: {tfname}")
+                            f"  [ORFA] Track id={tid} nao encontrada no disco, sera preservada na playlist: {tfname}") # type: ignore
 
                 cursor.execute("DELETE FROM PlaylistEntity WHERE listId = ?", (my_collection_id,)) # type: ignore
 
@@ -750,7 +760,7 @@ class SyncManager:
                 for d in diretorios:
                     caminho_subpasta = os.path.join(raiz, d)
                     cursor.execute("INSERT INTO Playlist (title, parentListId, isPersisted, nextListId, lastEditTime, isExplicitlyExported) VALUES (?, ?, 1, ?, ?, 1)", (d, parent_id, id_proxima_pasta, lastEditTime_iso)) # type: ignore
-                    novo_id = cursor.lastrowid
+                    novo_id = cursor.lastrowid # type: ignore
                     id_proxima_pasta = novo_id 
                     mapa_playlists[caminho_subpasta.lower()] = novo_id
                     mapa_hierarquia[novo_id] = parent_id
@@ -806,7 +816,7 @@ class SyncManager:
                         "SELECT id FROM PlaylistEntity WHERE listId = ? AND nextEntityId = 0 ORDER BY id DESC LIMIT 1",
                         (list_id,)
                     ).fetchone()
-
+                    
                     # Insere o novo no final (nextEntityId=0 = é o novo tail)
                     cursor.execute( # type: ignore
                         "INSERT INTO PlaylistEntity (listId, trackId, databaseUuid, nextEntityId, membershipReference) VALUES (?, ?, ?, 0, 0)",
@@ -814,7 +824,7 @@ class SyncManager:
                     )
                     novo_id = cursor.lastrowid
 
-                    # Aponta o tail anterior para o novo (encadeamento correto)
+                    # Aponta o tail anterior para o novo (encadeamento correto) # type: ignore
                     if tail: # type: ignore
                         cursor.execute( # type: ignore
                             "UPDATE PlaylistEntity SET nextEntityId = ? WHERE id = ?",

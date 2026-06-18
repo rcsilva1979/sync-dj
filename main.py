@@ -3,13 +3,15 @@ import sys
 import threading
 import webbrowser
 import tkinter as tk
+from tkinter import messagebox
 import customtkinter as ctk
 from PIL import Image, ImageTk
 from engine_gui import EngineSyncApp, get_resource_path
 from Sync_VDJ.vdj_gui import VirtualDJWindow
 from engine_sync_app import get_system_lang, SyncManager, check_for_updates
-from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME, STRINGS,
+from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME, STRINGS, COLOR_ACCENT_GREEN,
                        FONT_FAMILY, COLOR_BG_DARK, GITHUB_RELEASE_URL,
+                       COLOR_ACCENT_BLUE,
                        COLOR_TEXT_NORMAL, COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
                        CORNER_RADIUS_NONE)
 
@@ -287,14 +289,21 @@ class LauncherHub(ctk.CTk):
         )
         btn_relocate.grid(row=1, column=1, padx=10, pady=10, sticky="nsew")
 
-        # Botão 5: Song Discovery (Centralizado na terceira linha ou expandindo o grid)
+        # Botão 5: Song Discovery
         btn_discovery = ctk.CTkButton(
             grid_frame, text=self.txt["discovery_btn"].replace(" (", "\n("),
             fg_color=COLOR_BG_DARK, hover_color="#9B59B6", text_color=COLOR_TEXT_NORMAL,
             command=self.abrir_discovery_song, **button_style
         )
-        # Para manter o design, vamos colocá-lo em uma nova linha ocupando as duas colunas
-        btn_discovery.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky="nsew")
+        btn_discovery.grid(row=2, column=0, padx=10, pady=10, sticky="nsew")
+
+        # Botão 6: Ferramentas Engine DJ
+        btn_engine_tools = ctk.CTkButton(
+            grid_frame, text=self.txt["engine_tools_btn"].replace(" (", "\n("),
+            fg_color=COLOR_BG_DARK, hover_color=COLOR_ACCENT_BLUE, text_color=COLOR_TEXT_NORMAL,
+            command=self.abrir_engine_tools, **button_style
+        )
+        btn_engine_tools.grid(row=2, column=1, padx=10, pady=10, sticky="nsew")
 
         # Rodapé e Configurações
         # Frame para agrupar o rodapé e as configurações de log.
@@ -362,6 +371,12 @@ class LauncherHub(ctk.CTk):
         """Abre a janela da ferramenta 'Shazam Song Discovery'."""
         from discovery_song_gui import DiscoverySongWindow
         DiscoverySongWindow(self, self.txt)
+
+    def abrir_engine_tools(self):
+        """Abre a janela de Ferramentas Engine DJ."""
+        from engine_tools_gui import EngineToolsWindow
+        EngineToolsWindow(self, self.txt)
+
 
     def _check_for_updates_thread(self):
         """

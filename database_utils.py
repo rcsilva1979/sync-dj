@@ -216,6 +216,77 @@ def localizar_bancos_dados_engine():
 
     return encontrados
 
+def get_removable_drive_roots():
+    """
+    Busca e retorna os caminhos raiz de todos os discos removíveis.
+    """
+    roots = []
+    if IS_WIN:
+        import ctypes
+        drive_mask = ctypes.windll.kernel32.GetLogicalDrives()
+        for i in range(26): # A a Z
+            if (drive_mask >> i) & 1: # Se o drive existe
+                letra = chr(ord('A') + i)
+                raiz = f"{letra}:\\"
+                drive_type = ctypes.windll.kernel32.GetDriveTypeW(raiz)
+                # DRIVE_REMOVABLE = 2
+                if drive_type == 2: 
+                    roots.append(raiz)
+    elif IS_MAC:
+        volumes_dir = "/Volumes"
+        if os.path.exists(volumes_dir):
+            try:
+                for vol in os.listdir(volumes_dir):
+                    path_vol = os.path.join(volumes_dir, vol)
+                    if os.path.isdir(path_vol) and not os.path.islink(path_vol):
+                        roots.append(path_vol)
+            except Exception as e:
+                print(f"Erro ao listar volumes no macOS: {e}")
+    return roots
+
+def localizar_bancos_dados_removiveis():
+    """
+    Busca o banco de dados m.db apenas em discos removíveis (ex: pendrives, HDs externos).
+    """
+    encontrados = []
+
+    if IS_WIN:
+        import ctypes
+        # Obtém uma máscara de bits dos drives disponíveis
+        drive_mask = ctypes.windll.kernel32.GetLogicalDrives()
+        for i in range(26): # A a Z
+            if (drive_mask >> i) & 1: # Se o drive existe
+                letra = chr(ord('A') + i)
+                raiz = f"{letra}:\\"
+                drive_type = ctypes.windll.kernel32.GetDriveTypeW(raiz)
+                # DRIVE_REMOVABLE = 2
+                if drive_type == 2: 
+                    path_disco = os.path.join(raiz, "Engine Library", "Database2", "m.db")
+                    if os.path.exists(path_disco):
+                        norm = os.path.normpath(path_disco)
+                        if norm not in encontrados:
+                            encontrados.append(norm)
+    elif IS_MAC:
+        volumes_dir = "/Volumes"
+        if os.path.exists(volumes_dir):
+            try:
+                for vol in os.listdir(volumes_dir):
+                    # Ignora volumes de sistema ou internos que podem aparecer em /Volumes
+                    if vol in ["Macintosh HD", "Preboot", "Recovery", "VM"]:
+                        continue
+                    path_vol = os.path.join(volumes_dir, vol)
+                    # Verifica se é um diretório e não um link simbólico para evitar loops ou erros
+                    if os.path.isdir(path_vol) and not os.path.islink(path_vol):
+                        path_disco = os.path.join(path_vol, "Engine Library", "Database2", "m.db")
+                        if os.path.exists(path_disco):
+                            norm = os.path.normpath(path_disco)
+                            if norm not in encontrados:
+                                encontrados.append(norm)
+            except Exception as e:
+                print(f"Erro ao listar volumes no macOS: {e}")
+
+    return encontrados
+
 # Função para atualizar o caminho de uma faixa no banco de dados
 def update_track_path(db_path, track_id, new_path):
     """Atualiza o caminho de uma música no banco de dados Engine DJ."""

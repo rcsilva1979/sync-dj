@@ -304,7 +304,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                             else:
                                 lines.append(f"  ↳ [TAG] {self.txt.get('mik_no_hotcues_found', 'Nenhum Hotcue encontrado na tag MP3.')}\n")
                         except Exception as e:
-                            lines.append(f"  ↳ [ERRO] {self.txt.get('mik_error_reading_hotcues', 'Falha ao ler hotcues:')} {str(e)}\n")
+                            lines.append(f"  ↳ [ERRO] {self.txt.get('mik_error_reading_hotcues', 'Falha ao ler hotcues:')} {e}\n")
                     else:
                         lines.append(f"  ↳ [INFO] {self.txt.get('mik_detection_info', 'Detecção disponível apenas para arquivos MP3 locais.')}\n")
                     

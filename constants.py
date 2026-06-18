@@ -15,6 +15,8 @@ FONT_FAMILY = "Consolas"
 COLOR_BG_DARK = "#111111" # Fundo principal
 COLOR_TEXT_NORMAL = "#FFFFFF"
 COLOR_TEXT_MUTED = "#AAAAAA"
+COLOR_ACCENT_GREEN = "#00E5A3" # Nova cor para o segundo botão
+COLOR_ACCENT_BLUE = "#251F7E"
 COLOR_ERROR = "#FF5555" # Cor para mensagens de erro
 COLOR_SWITCH_OFF = "#555555"
 
@@ -57,6 +59,15 @@ STRINGS = {
         "discovery_overwrite_tags": "Sobrescrever Tags Existentes",
         "discovery_simulation_mode": "Modo Simulação (Não alterar arquivos)",
         "discovery_btn_action": "Descobrir e Corrigir Tags",
+        "mik_detection_info": "Detecção disponível apenas para arquivos MP3 locais.",
+        "engine_tools_title": "Ferramentas Engine DJ",
+        "engine_tools_import_device_playlist_title": "Importar Playlist do Dispositivo",
+        "engine_tools_device_db_label": "Banco de Dados do Dispositivo (m.db):",
+        "engine_tools_local_db_label": "Banco de Dados Local (m.db):",
+        "engine_tools_removable_drive_label": "Disco Removível:",
+        "engine_tools_all_local_dbs_label": "Bancos de Dados Locais Detectados:",
+        "engine_tools_import_device_playlist_btn": "Importar playlist criada no Dispositivo",
+        "engine_tools_btn": "Ferramentas Engine DJ",
         "discovery_status_waiting": "Aguardando início...",
         "confirm_playlist_msg": "A playlist alvo selecionada ({playlist}) é diferente do nome da pasta ({folder}).\n\nIsso irá REESTRUTURAR a playlist '{playlist}' para espelhar a pasta.\n\nDeseja continuar?",
         "confirm_playlist_title": "Confirmar Playlist Raiz",
@@ -216,6 +227,15 @@ STRINGS = {
         "discovery_overwrite_tags": "Overwrite Existing Tags",
         "discovery_simulation_mode": "Simulation Mode (Do not change files)",
         "discovery_btn_action": "Discovery and Fix Tags",
+        "mik_detection_info": "Detection available only for local MP3 files.",
+        "engine_tools_title": "Engine DJ Tools",
+        "engine_tools_import_device_playlist_title": "Import Device Playlist",
+        "engine_tools_device_db_label": "Device Database (m.db):",
+        "engine_tools_local_db_label": "Local Database (m.db):",
+        "engine_tools_removable_drive_label": "Removable Drive:",
+        "engine_tools_all_local_dbs_label": "Detected Local Databases:",
+        "engine_tools_import_device_playlist_btn": "Import playlist created on Device",
+        "engine_tools_btn": "Engine DJ Tools",
         "discovery_status_waiting": "Waiting to start...",
         "confirm_playlist_msg": "The selected target playlist ({playlist}) is different from the folder name ({folder}).\n\nThis will RESTRUCTURE the playlist '{playlist}' to mirror the folder.\n\nDo you want to continue?",
         "confirm_playlist_title": "Confirm Root Playlist",
@@ -375,6 +395,15 @@ STRINGS = {
         "discovery_overwrite_tags": "Sobrescribir Etiquetas Existentes",
         "discovery_simulation_mode": "Modo Simulación (No alterar archivos)",
         "discovery_btn_action": "Descobrir e Corregir Etiquetas",
+        "mik_detection_info": "Detección disponible solo para archivos MP3 locales.",
+        "engine_tools_title": "Herramientas Engine DJ",
+        "engine_tools_import_device_playlist_title": "Importar Lista de Reproducción del Dispositivo",
+        "engine_tools_device_db_label": "Base de Datos del Dispositivo (m.db):",
+        "engine_tools_local_db_label": "Base de Datos Local (m.db):",
+        "engine_tools_removable_drive_label": "Disco Extraíble:",
+        "engine_tools_all_local_dbs_label": "Bases de Datos Locales Detectadas:",
+        "engine_tools_import_device_playlist_btn": "Importar lista de reproducción creada en el Dispositivo",
+        "engine_tools_btn": "Herramientas Engine DJ",
         "discovery_status_waiting": "Esperando inicio...",
         "confirm_playlist_msg": "La lista de reproducción de destino seleccionada ({playlist}) é diferente del nombre de la carpeta ({folder}).\n\nEsto REESTRUCTURARÁ la lista '{playlist}' para reflejar la carpeta.\n\n¿Desea continuar?",
         "confirm_playlist_title": "Confirmar Playlist Raiz",

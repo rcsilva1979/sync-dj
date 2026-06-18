@@ -2,6 +2,8 @@ import warnings
 import logging
 import os
 import sys
+import json
+import subprocess
 
 logging.captureWarnings(True)
 logging.getLogger("py.warnings").setLevel(logging.WARNING)
@@ -19,6 +21,10 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 from shazamio import Shazam
+from shazamio.exceptions import FailedDecodeJson, BadMethod
+from shazamio.interfaces.client import HTTPClientInterface
+from shazamio.misc import Request
+from aiohttp_retry import RetryClient, ExponentialRetry # type: ignore
 import shutil # Keep shutil for later use
 import imageio_ffmpeg # New import
 from mutagen.easyid3 import EasyID3
@@ -30,6 +36,40 @@ from report_gui import ReportWindow # type: ignore
 from constants import (IS_WIN, FONT_FAMILY, APP_NAME, VERSAO_ATUAL, 
                        COLOR_BG_DARK, COLOR_TEXT_NORMAL, COLOR_TEXT_MUTED, 
                        COLOR_SWITCH_OFF, CORNER_RADIUS_NONE)
+
+
+class DebugShazamHTTPClient(HTTPClientInterface):
+    """Cliente HTTP do Shazam com mensagens de erro mais úteis para debug."""
+
+    def __init__(self, retry_options=None):
+        self.retry_options = retry_options or ExponentialRetry(
+            attempts=20,
+            max_timeout=60,
+            statuses={500, 502, 503, 504, 429},
+        )
+
+    async def request(self, method: str, url: str, *args, **kwargs):
+        async with RetryClient(
+            retry_options=self.retry_options,
+            raise_for_status=False,
+        ) as client:
+            if method.upper() == "GET":
+                request_cm = client.get(url, **kwargs)
+            elif method.upper() == "POST":
+                request_cm = client.post(url, **kwargs)
+            else:
+                raise BadMethod("Accept only GET/POST")
+
+            async with request_cm as resp:
+                body_text = await resp.text()
+                content_type = resp.headers.get("Content-Type", "")
+                try:
+                    return json.loads(body_text)
+                except Exception as exc:
+                    snippet = body_text[:500].replace("\n", " ").replace("\r", " ")
+                    raise FailedDecodeJson(
+                        f"status={resp.status}, content_type={content_type}, body={snippet!r}"
+                    ) from exc
 
 # --- Utilitários de Tag ---
 def has_cover(file_path):
@@ -134,6 +174,7 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.rename_files = ctk.BooleanVar(value=True)
         self.overwrite_tags = ctk.BooleanVar(value=False)
         self.simulation_mode = ctk.BooleanVar(value=False)
+        self.final_ffmpeg_path: str | None = None
 
         self.log_paths = None
         self.report_content = [] # Alterado para lista de tuplas (mensagem, tag_cor)
@@ -222,16 +263,18 @@ class DiscoverySongWindow(ctk.CTkToplevel):
     def browse_folder(self):
         folder = filedialog.askdirectory()
         if folder:
-            self.folder_path.set(folder)
+            self.folder_path.set(os.path.normpath(folder))
 
     def log(self, message: str | list[tuple[str, str | None]], tag: str | None = None):
-        """Registra no arquivo de log (se ativo) e acumula para o relatório final.""" # type: ignore
+        """Registra no arquivo de log (se ativo) e acumula para o relatório final."""
         if isinstance(message, list): # message is a list of (text, tag) tuples
             full_message_for_file_log = "".join([text for text, _ in message])
             if self.log_paths:
                 self.manager.log(self.log_paths, full_message_for_file_log)
             self.report_content.append(message) # Store the list of tuples
         else: # message is a single string
+            if tag == "debug" and not self.manager.config.get("debug", False):
+                return
             if self.log_paths:
                 self.manager.log(self.log_paths, message)
             self.report_content.append([(message, tag)]) # Store as a list with one tuple
@@ -241,6 +284,38 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         threading.Thread(target=self.run_async_process, daemon=True).start()
 
     def run_async_process(self):
+        """Ponto de entrada da thread para o loop de eventos assíncrono."""
+        # 1. Configurar FFmpeg ANTES de iniciar o loop
+        try:
+            # Obtém o executável do pacote imageio_ffmpeg (que você mencionou que funcionava)
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+            self.final_ffmpeg_path = ffmpeg_exe
+            
+            # Pega o diretório do binário
+            ffmpeg_dir = os.path.dirname(ffmpeg_exe)
+            
+            # injeta no PATH de forma absoluta
+            current_path = os.environ.get("PATH", "")
+            if ffmpeg_dir not in current_path:
+                os.environ["PATH"] = f"{ffmpeg_dir}{os.pathsep}{current_path}"
+            
+            # Define variável de ambiente para bibliotecas que a consultam
+            os.environ["FFMPEG_BINARY"] = ffmpeg_exe
+            self.log(f"✅ FFmpeg configurado via PATH: {ffmpeg_exe}")
+        except Exception as e:
+            self.log(f"⚠️ Erro ao localizar FFmpeg via imageio: {e}", tag="error")
+            self.final_ffmpeg_path = shutil.which("ffmpeg")
+            if not self.final_ffmpeg_path:
+                self.log(f"❌ Erro crítico: FFmpeg não encontrado no sistema.", tag="error")
+
+        # 2. Configurar Política de Loop para Windows (necessário para subprocessos)
+        if IS_WIN:
+            try:
+                asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+            except Exception:
+                pass
+
+        # 3. Inicia o loop
         asyncio.run(self.process_logic())
         self.progress_text.set(self.txt.get("status_done", "✅ Concluído!"))
         self.after(0, lambda: self.btn_start.configure(state='normal'))
@@ -257,14 +332,57 @@ class DiscoverySongWindow(ctk.CTkToplevel):
                 txt=self.txt
             ))
 
-    async def try_identify(self, shazam, file_path, filename):
-        """Identifica a música usando o caminho do arquivo (mais estável e preciso)."""
+    async def try_identify(self, shazam: Shazam, file_path: str, filename: str):
+        """Identifica a música usando a API moderna do Shazamio.
+
+        A versão legada `recognize_song()` depende de `pydub` e pode tentar chamar
+        `ffprobe`, que não está presente no bundle atual. A API `recognize()` usa o
+        # core nativo do `shazamio_core`, então evita esse ponto de falha no Windows.
+        """
         try:
-            ### NAO MEXER NA LINHA LOGO ABAIXO #####
-            out = await shazam.recognize_song(file_path)
-            return out
+            # Detalhes para diagnóstico profundo
+            abs_path = os.path.abspath(file_path)
+            ffmpeg_exe = self.final_ffmpeg_path or "ffmpeg"
+            # O Shazamio extrai os primeiros segundos do áudio para gerar a assinatura.
+            cmd_simulado = f'"{ffmpeg_exe}" -i "{abs_path}" -t 12 -f s16le -ac 1 -ar 16000 -'
+
+            self.log(f"🛠️ [DEBUG] Executando recognize\n  Arquivo: {abs_path}\n  Comando Aproximado: {cmd_simulado}", tag="debug")
+
+            # Tenta identificação direta pelo caminho.
+            return await shazam.recognize(file_path)
+        except FailedDecodeJson as e:
+            self.log(
+                f"⚠️ Resposta inválida da API do Shazam para {filename}: {e}",
+                tag="error"
+            )
+            self.log(
+                "ℹ️ Isso normalmente indica bloqueio de rede, resposta HTML/403/429, ou instabilidade da API.",
+                tag="error"
+            )
+            return {}
+        except (FileNotFoundError, OSError) as e:
+            # Se o caminho falhar, tentamos ler os bytes do arquivo.
+            try:
+                if not os.path.exists(file_path): # type: ignore
+                    self.log(f"❌ Arquivo não encontrado: {filename}", tag="error")
+                    return {}
+                
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                
+                if not content:
+                    self.log(f"⚠️ Arquivo vazio ou ilegível: {filename}")
+                    return {}
+
+                ffmpeg_exe = self.final_ffmpeg_path or "ffmpeg"
+                cmd_buffer_simulado = f'"{ffmpeg_exe}" -i pipe:0 -t 12 -f s16le -ac 1 -ar 16000 -'
+                self.log(f"🔄 [DEBUG] Tentando via buffer (stdin pipe):\n  Comando: {cmd_buffer_simulado}", tag="debug")
+                
+                return await shazam.recognize(content)
+            except Exception as ex:
+                self.log(f"⚠️ Falha na detecção alternativa de {filename}: {ex}", tag="error")
         except Exception as e:
-            self.log(f"⚠️ Erro na detecção de {filename}: {e}")
+            self.log(f"⚠️ Erro na detecção de {filename}: {e}", tag="error")
             
         return {}
 
@@ -273,53 +391,33 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.report_content = [] # Limpa conteúdo de relatório anterior
 
         # Inicializa o log em arquivo conforme as preferências salvas no hub (main.py)
-        self.log_paths = self.manager.iniciar_log(
+        self.log_paths = self.manager.iniciar_log( # type: ignore
             folder, "N/A", os.path.basename(folder),
             self.manager.config.get("log", True),
             self.manager.config.get("debug", False),
             tool_name="DISCOVERY"
         )
 
-        # Use imageio_ffmpeg para obter o caminho do executável FFmpeg
-        final_ffmpeg_path = None
-        try:
-            source_ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
-            
-            # O shazamio procura por um executável chamado exatamente 'ffmpeg' (ou 'ffmpeg.exe') no PATH.
-            standard_name = "ffmpeg.exe" if IS_WIN else "ffmpeg"
-            # Usamos abspath para garantir que o Windows não se perca com caminhos relativos
-            storage_dir_abs = os.path.abspath(self.manager.storage_dir)
-            final_ffmpeg_path = os.path.join(storage_dir_abs, standard_name)
-            
-            if not os.path.exists(final_ffmpeg_path):
-                shutil.copy2(source_ffmpeg, final_ffmpeg_path)
-                
-            # Forçamos a atualização do PATH no início da variável de ambiente
-            # Isso garante que este ffmpeg tenha prioridade absoluta
-            paths = os.environ.get("PATH", "").split(os.pathsep)
-            if storage_dir_abs not in paths:
-                os.environ["PATH"] = storage_dir_abs + os.pathsep + os.environ["PATH"]
-            
-            # Verificação diagnóstica: O Python realmente consegue achar o comando agora?
-            verified_path = shutil.which("ffmpeg")
-            if verified_path:
-                self.log(f"✅ FFmpeg pronto para uso: {verified_path}")
-            else:
-                self.log(f"⚠️ Alerta: FFmpeg copiado mas não localizado no PATH do sistema.", tag="error")
-
-        except Exception as e:
-            self.log(f"❌ Erro ao obter FFmpeg via imageio_ffmpeg: {e}", tag="error")
-            final_ffmpeg_path = None
-
-        if not final_ffmpeg_path or not os.path.exists(final_ffmpeg_path):
-            self.log(f"❌ Erro crítico: FFmpeg não encontrado em '{final_ffmpeg_path}'. Verifique se o antivírus não bloqueou o processo.", tag="error")
+        if self.final_ffmpeg_path:
+            self.log(f"🛠️ [DEBUG] PATH completo: {os.environ['PATH']}", tag="debug") # type: ignore
+            self.log(f"✅ FFmpeg pronto para uso: {self.final_ffmpeg_path}")
+            # Teste de execução direta para validar o ambiente
+            cmd_test = [self.final_ffmpeg_path, "-version"]
+            try:
+                proc_res = subprocess.run(cmd_test, capture_output=True, text=True, check=True)
+                self.log(f"🚀 Teste de execução FFmpeg: OK ({proc_res.stdout.splitlines()[0]})")
+            except Exception as ex:
+                self.log(f"⚠️ Falha no teste de execução do FFmpeg: {ex}", tag="error")
+        else:
+            self.log(f"❌ Erro crítico: FFmpeg não disponível.", tag="error")
             return
 
         if not os.path.exists(folder):
             self.log(f"❌ Erro: Pasta '{folder}' não encontrada.")
             return
 
-        shazam = Shazam() # O Shazamio espera que o FFmpeg esteja no PATH, não no construtor
+        # Instancia o Shazam com um cliente HTTP que preserva detalhes do erro.
+        shazam = Shazam(http_client=DebugShazamHTTPClient()) 
         self.log(f"--- Iniciando verificação de tags na pasta: {folder} ---")
         
         # Busca recursiva de arquivos
@@ -327,7 +425,8 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         for root_dir, _, files in os.walk(folder):
             for f in files:
                 if f.lower().endswith(('.mp3', '.m4a', '.wav', '.ogg')):
-                    all_files.append(os.path.join(root_dir, f))
+                    # Normaliza o caminho do arquivo para evitar problemas com barras no Windows
+                    all_files.append(os.path.normpath(os.path.join(root_dir, f)))
         
         total_files = len(all_files)
         if total_files == 0:
