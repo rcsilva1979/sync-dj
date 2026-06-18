@@ -34,6 +34,15 @@ def get_base_dir():
         return os.path.dirname(sys.executable)
     return os.path.dirname(os.path.abspath(__file__))
 
+def get_app_storage_dir():
+    """Retorna o diretório na pasta Documentos para salvar dados do usuário."""
+    storage_path = _Path.home() / "Documents" / "Sync_DJ"
+    if not storage_path.exists():
+        try:
+            storage_path.mkdir(parents=True, exist_ok=True)
+        except Exception: pass
+    return str(storage_path)
+
 def get_playlists_from_db(db_path):
     return _get_playlists(db_path)
 
@@ -286,14 +295,27 @@ class LoggingCursor:
 class SyncManager:
     def __init__(self):
         self.base_dir = get_base_dir()
-        self.config_file = os.path.join(self.base_dir, "engine_sync_config.json")
+        self.storage_dir = get_app_storage_dir()
+        self.config_file = os.path.join(self.storage_dir, "sync_dj_tools_config.json")
         self.config = self.load_config()
         self.cancel_requested = False
 
     def load_config(self):
-        if not os.path.exists(self.config_file): return {}
+        if not os.path.exists(self.config_file):
+            defaults = {
+                "log": True,
+                "debug": False,
+                "show_report": True,
+                "auto_update": True,
+                "app_version": VERSAO_ATUAL
+            }
+            try:
+                with open(self.config_file, "w", encoding="utf-8") as f:
+                    json.dump(defaults, f, indent=4, ensure_ascii=False)
+            except Exception: pass
+            return defaults
         try:
-            with open(self.config_file, "r") as f: return json.load(f)
+            with open(self.config_file, "r", encoding="utf-8") as f: return json.load(f)
         except (FileNotFoundError, json.JSONDecodeError): return {}
 
     def localizar_bancos_dados(self):
@@ -302,8 +324,10 @@ class SyncManager:
     def save_config(self, data):
         self.config.update(data)
         # Filtra opções que o usuário pediu para não persistir no arquivo JSON
-        excluir = {"importar_hotcue", "sobrescrever_hotcue", "remover_orfas"}
+        excluir = {"importar_hotcue", "sobrescrever_hotcue", "remover_orfas", "path_db"}
         config_persistente = {k: v for k, v in self.config.items() if k not in excluir}
+        # Inclui a versão para controle de compatibilidade futura
+        config_persistente["app_version"] = VERSAO_ATUAL
         try:
             with open(self.config_file, "w", encoding="utf-8") as f:
                 json.dump(config_persistente, f, indent=4, ensure_ascii=False)
@@ -341,7 +365,7 @@ class SyncManager:
     def iniciar_log(self, pasta, db_path, nome_colecao, ativo_log, ativo_debug, tool_name="SYNC"):
         if not ativo_log and not ativo_debug: return None, None
         
-        log_dir = os.path.join(self.base_dir, "Reports")
+        log_dir = os.path.join(self.storage_dir, "Reports")
         if not os.path.exists(log_dir):
             try:
                 os.makedirs(log_dir)
@@ -473,7 +497,7 @@ class SyncManager:
         if self.config.get("fazer_backup"):
             progress_callback(ui_strings["status_backup"], 0)
             try:
-                backup_dir = os.path.join(self.base_dir, "Backup_DB")
+                backup_dir = os.path.join(self.storage_dir, "Backup_DB")
                 if not os.path.exists(backup_dir):
                     os.makedirs(backup_dir)
 

@@ -263,8 +263,11 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
                 )
             else:
                 drives_encontrados = sorted(list({get_vol_id(d) for d in self.found_databases}))
-                texto_drives = " | ".join(drives_encontrados) if drives_encontrados else self.txt.get("not_found", "Não localizada")
-                self.lbl_db_auto.configure(text=f"✖ {self.txt.get('db_file', 'Banco de Dados (m.db):')} {texto_drives}", text_color="#FF5555")
+                if drives_encontrados:
+                    texto_drives = " | ".join(drives_encontrados)
+                    self.lbl_db_auto.configure(text=f"✔ {self.txt['engine_dbs_detected'].format(count=len(self.found_databases))}: {texto_drives}", text_color="#00E5A3")
+                else:
+                    self.lbl_db_auto.configure(text=f"✖ {self.txt.get('db_file', 'Banco de Dados (m.db):')} {self.txt.get('not_found', 'Não localizada')}", text_color="#FF5555")
         
         self.carregar_playlists() # Always call carregar_playlists after attempting to set db_path
 

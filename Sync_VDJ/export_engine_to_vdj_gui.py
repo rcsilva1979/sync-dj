@@ -457,12 +457,13 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             messagebox.showerror("Erro", "Por favor, selecione uma playlist válida.")
             return # type: ignore
         
-        dest_dir = os.path.join(self.manager.base_dir, "Reports")
+        storage_dir = self.manager.storage_dir
+        reports_dir = os.path.join(storage_dir, "Reports")
         self.update_status(self.txt.get("status_extracting_playlist_info", "Extraindo informações da playlist '{playlist_name}'...").format(playlist_name=display_name), "blue")
 
         # Inicializa log para Extração de Info
         log_paths = self.manager.iniciar_log(
-            dest_dir, "Engine Playlist Info", display_name, 
+            reports_dir, "Engine Playlist Info", display_name, 
             self.manager.config.get("log", True), self.manager.config.get("debug", False), 
             tool_name="ENGINE_INFO")
 
@@ -510,10 +511,6 @@ class ImportEngineToVDJWindow(ctk.CTkToplevel):
             return
 
         try:
-            # Obter o diretório base da aplicação (do SyncManager na janela principal, que é o master do master)
-            base_dir = self.manager.base_dir
-            reports_dir = os.path.join(base_dir, "Reports")
-
             # Criar a pasta Reports se não existir
             if not os.path.exists(reports_dir):
                 os.makedirs(reports_dir)

@@ -1,5 +1,7 @@
 import warnings
 import logging
+import os
+import sys
 
 logging.captureWarnings(True)
 logging.getLogger("py.warnings").setLevel(logging.WARNING)
@@ -13,16 +15,18 @@ warnings.filterwarnings(
 import shutil
 
 # Tenta carregar o FFmpeg via static-ffmpeg antes de importar o Shazam
-# Isso evita avisos no console e garante que o ambiente esteja pronto.
 try:
     import static_ffmpeg
-    static_ffmpeg.add_paths()
+    # No modo compilado, tentamos adicionar o caminho do recurso embutido
+    if getattr(sys, 'frozen', False):
+        if hasattr(sys, '_MEIPASS'):
+            os.environ["PATH"] += os.pathsep + sys._MEIPASS
+    else:
+        static_ffmpeg.add_paths()
 except ImportError:
     pass
 
 import asyncio
-import os
-import sys
 import threading
 import httpx
 import customtkinter as ctk
