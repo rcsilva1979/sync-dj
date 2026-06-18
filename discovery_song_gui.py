@@ -14,16 +14,15 @@ warnings.filterwarnings(
 
 import shutil
 
+# Detecta plataforma antes do setup do FFmpeg para evitar NameError em modo congelado
+_IS_WIN = sys.platform.startswith('win')
+
 # Tenta carregar o FFmpeg via static-ffmpeg antes de importar o Shazam
 try:
     if getattr(sys, 'frozen', False):
         if hasattr(sys, '_MEIPASS'):
-            # Garante que a pasta raiz do bundle (onde colocamos o ffmpeg.exe) esteja no PATH
-            bundle_dir = sys._MEIPASS
-            if bundle_dir not in os.environ["PATH"]:
-                os.environ["PATH"] = bundle_dir + os.pathsep + os.environ["PATH"]
-            # No Windows, PyInstaller às vezes precisa do caminho absoluto direto para o binário
-            ffmpeg_bundled = os.path.join(bundle_dir, "ffmpeg.exe" if IS_WIN else "ffmpeg")
+            # Garante que a pasta temporária do executável esteja no topo do PATH
+            os.environ["PATH"] = sys._MEIPASS + os.pathsep + os.environ["PATH"]
     else:
         import static_ffmpeg
         static_ffmpeg.add_paths()
@@ -297,11 +296,13 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         )
 
         # Verificação robusta de FFmpeg
-        ffmpeg_path = shutil.which("ffmpeg")
-        if not ffmpeg_path and getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        # Tenta localizar no PATH (já atualizado acima) ou constrói o caminho direto
+        ffmpeg_path = shutil.which("ffmpeg") or shutil.which("ffmpeg.exe")
+        
+        if not ffmpeg_path and getattr(sys, 'frozen', False):
             ffmpeg_path = os.path.join(sys._MEIPASS, "ffmpeg.exe" if IS_WIN else "ffmpeg")
 
-        if not ffmpeg_path or (not os.path.exists(ffmpeg_path) and not shutil.which("ffmpeg")):
+        if not ffmpeg_path or not os.path.exists(ffmpeg_path):
             self.log(f"❌ Erro crítico: FFmpeg não encontrado. Verifique se o antivírus não bloqueou o processo.")
             return
 
