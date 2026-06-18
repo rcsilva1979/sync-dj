@@ -112,21 +112,21 @@ def check_for_updates(current_version: str) -> str | None:
     try:
         ctx = ssl._create_unverified_context()
         
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'SyncDJ-Tools-App'}
         if GITHUB_TOKEN:
             headers['Authorization'] = f'token {GITHUB_TOKEN}'
             
         req = urllib.request.Request(LATEST_RELEASE_API, headers=headers)
         
-        with urllib.request.urlopen(req, timeout=5, context=ctx) as response:
+        with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode())
                 
-                # O endpoint /tags retorna uma lista. Pegamos o primeiro item (mais recente).
-                if isinstance(data, list) and len(data) > 0:
+                github_version = ""
+                if isinstance(data, dict):
+                    github_version = data.get("tag_name", "")
+                elif isinstance(data, list) and len(data) > 0:
                     github_version = data[0].get("name", "")
-                else:
-                    github_version = ""
                     
                 if github_version and versao_maior(github_version, current_version):
                     return github_version

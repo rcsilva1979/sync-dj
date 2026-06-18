@@ -16,12 +16,16 @@ import shutil
 
 # Tenta carregar o FFmpeg via static-ffmpeg antes de importar o Shazam
 try:
-    import static_ffmpeg
-    # No modo compilado, tentamos adicionar o caminho do recurso embutido
     if getattr(sys, 'frozen', False):
         if hasattr(sys, '_MEIPASS'):
-            os.environ["PATH"] += os.pathsep + sys._MEIPASS
+            # Garante que a pasta raiz do bundle (onde colocamos o ffmpeg.exe) esteja no PATH
+            bundle_dir = sys._MEIPASS
+            if bundle_dir not in os.environ["PATH"]:
+                os.environ["PATH"] = bundle_dir + os.pathsep + os.environ["PATH"]
+            # No Windows, PyInstaller às vezes precisa do caminho absoluto direto para o binário
+            ffmpeg_bundled = os.path.join(bundle_dir, "ffmpeg.exe" if IS_WIN else "ffmpeg")
     else:
+        import static_ffmpeg
         static_ffmpeg.add_paths()
 except ImportError:
     pass
@@ -292,9 +296,15 @@ class DiscoverySongWindow(ctk.CTkToplevel):
             tool_name="DISCOVERY"
         )
 
-        # Verificação final antes de processar
-        if not shutil.which("ffmpeg"):
-            self.log("❌ Erro crítico: FFmpeg não encontrado. O processamento não pode continuar.")
+        # Verificação robusta de FFmpeg
+        ffmpeg_path = shutil.which("ffmpeg")
+        if not ffmpeg_path:
+             # Tenta verificar se ele existe na pasta temporária do PyInstaller
+             if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+                 ffmpeg_path = os.path.join(sys._MEIPASS, "ffmpeg.exe" if IS_WIN else "ffmpeg")
+        
+        if not ffmpeg_path or not os.path.exists(ffmpeg_path):
+            self.log(f"❌ Erro crítico: FFmpeg não encontrado em {sys._MEIPASS if getattr(sys, 'frozen', False) else 'PATH'}. O processamento não pode continuar.")
             return
 
         if not os.path.exists(folder):

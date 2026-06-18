@@ -24,7 +24,7 @@ CORNER_RADIUS_NONE = 0
 URL_DOACAO = "https://linktr.ee/leh.deejay82"
 GITHUB_API_URL = "https://api.github.com/repos/rcsilva1979/sync-dj"
 GITHUB_RELEASE_URL = "https://github.com/rcsilva1979/sync-dj/releases"
-LATEST_RELEASE_API = "https://api.github.com/repos/rcsilva1979/sync-dj/tags"
+LATEST_RELEASE_API = "https://api.github.com/repos/rcsilva1979/sync-dj/releases/latest"
 
 def _load_github_token():
     """Carrega o token de um arquivo local não versionado."""

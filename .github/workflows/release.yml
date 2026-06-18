@@ -28,7 +28,13 @@ jobs:
 
       - name: Build EXE with PyInstaller
         run: |
-          python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --collect-all shazamio --collect-all httpx --collect-all anyio --icon "images/sync_icon.ico" --name "SyncDJ_Tools_${{ github.ref_name }}" main.py
+          # Força o download do binário do FFmpeg no ambiente de build
+          python -m static_ffmpeg.run --version
+          # Localiza o caminho real do binário instalado
+          $FFMPEG_EXE = python -c "import static_ffmpeg; static_ffmpeg.add_paths(); import shutil; import os; print(os.path.abspath(shutil.which('ffmpeg')))"
+          echo "FFmpeg localizado em: $FFMPEG_EXE"
+          # Compila incluindo o binário na raiz do executável
+          python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --add-binary "$FFMPEG_EXE;." --collect-all shazamio --collect-all httpx --collect-all anyio --icon "images/sync_icon.ico" --name "SyncDJ_Tools_${{ github.ref_name }}" main.py
 
       - name: List dist folder
         run: dir dist
