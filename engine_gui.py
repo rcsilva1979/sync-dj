@@ -4,7 +4,7 @@ import threading
 import webbrowser
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from PIL import Image
+from PIL import Image, ImageTk
 import customtkinter as ctk
 # Importações do nosso backend e constantes
 from constants import (
