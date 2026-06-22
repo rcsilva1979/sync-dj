@@ -8,6 +8,7 @@ from constants import (IS_WIN, APP_NAME, VERSAO_ATUAL, FONT_FAMILY,
                        COLOR_ACCENT_BLUE, COLOR_TEXT_NORMAL,
                        COLOR_ACCENT_GREEN) # Importar COLOR_ACCENT_GREEN para o segundo botão
 from import_device_playlist_gui import ImportDevicePlaylistWindow # Importar a nova janela
+from engine_history_gui import EngineHistoryWindow
 
 class EngineToolsWindow(ctk.CTkToplevel):
     """
@@ -62,12 +63,12 @@ class EngineToolsWindow(ctk.CTkToplevel):
                              corner_radius=CORNER_RADIUS_NONE, command=self.abrir_import_device_playlist)
         btn1.pack(pady=10)
 
-        # Botão 2
-        btn2 = ctk.CTkButton(button_frame, text="Botão 2 (Ainda sem texto)",
-                             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
-                             height=40, width=250, fg_color=COLOR_ACCENT_GREEN, # Usar uma cor diferente para o segundo botão
-                             text_color=COLOR_TEXT_NORMAL, hover_color="#008000", # Cor de hover para o segundo botão
-                             corner_radius=CORNER_RADIUS_NONE, command=lambda: print("Botão 2 clicado"))
+        # Botão 2 - Exportar histórico de evento
+        btn2 = ctk.CTkButton(button_frame, text=self.txt.get("engine_tools_export_history_btn", "Exportar Histórico"),
+                     font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+                     height=40, width=250, fg_color=COLOR_ACCENT_GREEN, # Usar uma cor diferente para o segundo botão
+                     text_color=COLOR_TEXT_NORMAL, hover_color="#008000", # Cor de hover para o segundo botão
+                     corner_radius=CORNER_RADIUS_NONE, command=self.abrir_export_history)
         btn2.pack(pady=10)
 
         # Rodapé
@@ -77,3 +78,9 @@ class EngineToolsWindow(ctk.CTkToplevel):
     def abrir_import_device_playlist(self):
         """Abre a janela para importar playlists de dispositivos externos."""
         ImportDevicePlaylistWindow(self, self.txt)
+
+    def abrir_export_history(self):
+        """Abre a janela para visualizar e exportar históricos encontrados em hm.db."""
+        history_window = EngineHistoryWindow(self, self.txt)
+        history_window.lift()
+        history_window.focus()
