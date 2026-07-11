@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
@@ -7,14 +8,101 @@ import shutil
 import threading
 from collections import defaultdict
 import unicodedata
+from difflib import SequenceMatcher
 from database_utils import (
     localizar_bancos_dados_engine, get_all_playlists_hierarchical, get_tracks_by_playlist_id, 
     update_track_path, get_track_id_by_path, update_playlist_entry_track
 )
+from tinytag import TinyTag
 from engine_sync_app import get_resource_path, SyncManager
 from report_gui import ReportWindow
+from backup_utils import create_database_backup
 from constants import (IS_WIN, IS_MAC, FONT_FAMILY, APP_NAME, 
                        VERSAO_ATUAL, COLOR_TEXT_MUTED, COLOR_BG_DARK, CORNER_RADIUS_NONE)
+
+
+def normalize_name(texto):
+    """Normaliza nomes de arquivos para comparação robusta entre banco e pasta."""
+    if not texto:
+        return ""
+
+    texto_norm = unicodedata.normalize('NFD', str(texto).lower())
+    texto_norm = "".join([c for c in texto_norm if not unicodedata.combining(c)])
+
+    texto_norm = re.sub(r"^(\d{1,2})\s*[-_.\)\]]*\s*", "", texto_norm)
+    texto_norm = texto_norm.replace("&", " and ")
+    texto_norm = re.sub(r"\b(ft|featuring|feat)\b", " feat ", texto_norm)
+    texto_norm = re.sub(r"\b(w/|with)\b", " with ", texto_norm)
+    texto_norm = re.sub(r"[^a-z0-9]+", " ", texto_norm)
+    texto_norm = " ".join(texto_norm.split())
+    return os.path.splitext(texto_norm)[0]
+
+
+def find_matching_paths(search_keys, file_index, metadata_index=None, size_index=None, track_size=None, min_ratio=0.82):
+    """Procura correspondências exatas ou difusas em índices de nomes e metadados."""
+    if not search_keys:
+        return [], "Exato"
+
+    for search_key in search_keys:
+        if not search_key:
+            continue
+        if search_key in file_index:
+            return file_index[search_key], "Exato"
+
+    if metadata_index:
+        for search_key in search_keys:
+            if not search_key:
+                continue
+            if search_key in metadata_index:
+                return metadata_index[search_key], "Fuzzy"
+
+    for search_key in search_keys:
+        if not search_key:
+            continue
+        for candidate_key, paths in file_index.items():
+            if not candidate_key:
+                continue
+            if candidate_key == search_key:
+                return paths, "Exato"
+            if search_key in candidate_key or candidate_key in search_key:
+                return paths, "Fuzzy"
+            ratio = SequenceMatcher(None, search_key, candidate_key).ratio()
+            if ratio >= min_ratio:
+                return paths, "Fuzzy"
+
+    if metadata_index:
+        for search_key in search_keys:
+            if not search_key:
+                continue
+            for candidate_key, paths in metadata_index.items():
+                if not candidate_key:
+                    continue
+                if candidate_key == search_key:
+                    return paths, "Fuzzy"
+                if search_key in candidate_key or candidate_key in search_key:
+                    return paths, "Fuzzy"
+                ratio = SequenceMatcher(None, search_key, candidate_key).ratio()
+                if ratio >= min_ratio:
+                    return paths, "Fuzzy"
+
+    if track_size and size_index:
+        for cand_path in size_index.get(track_size, []):
+            cand_name = normalize_name(os.path.basename(cand_path))
+            if not cand_name:
+                continue
+            if cand_name in search_keys:
+                return [cand_path], "Exato"
+            for search_key in search_keys:
+                if not search_key:
+                    continue
+                if search_key in cand_name or cand_name in search_key:
+                    return [cand_path], "Fuzzy"
+                ratio = SequenceMatcher(None, search_key, cand_name).ratio()
+                if ratio >= min_ratio:
+                    return [cand_path], "Fuzzy"
+
+    return [], "Exato"
+
 
 class RelocateLostTracksWindow(ctk.CTkToplevel):
     """
@@ -73,6 +161,8 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         self.fuzzy_action = ctk.StringVar(value="") # Nenhuma ação fuzzy selecionada por padrão
         # Variável booleana para indicar se a operação deve ser apenas de verificação (dry run).
         self.just_verify = ctk.BooleanVar(value=False)
+        # Variável booleana para habilitar ou não o backup do banco antes da realocação.
+        self.fazer_backup = ctk.BooleanVar(value=self.manager.config.get("fazer_backup", True))
         # Lista de caminhos para todos os bancos de dados Engine DJ encontrados no sistema.
         self.found_databases = localizar_bancos_dados_engine()
 
@@ -192,6 +282,16 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             corner_radius=CORNER_RADIUS_NONE
         )
         self.check_verify.pack(anchor="w", pady=(5, 5))
+
+        self.check_backup = ctk.CTkSwitch(
+            frame_mode,
+            text=self.txt.get("mik_backup_switch_label", "Fazer backup do banco de dados"),
+            variable=self.fazer_backup,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color="#555555",
+            progress_color="#F39C12"
+        )
+        self.check_backup.pack(anchor="w", pady=(0, 8))
 
         # Botão para listar as músicas faltantes na playlist selecionada.
         # Botão: Listar Músicas Faltantes
@@ -398,14 +498,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
         if not db_pl_pairs: return
 
         def normalizar_nome(texto):
-            """Normaliza caracteres acentuados e uniformiza espaços para busca robusta."""
-            if not texto: return ""
-            # Remove acentos, converte para minúsculas e remove a extensão para comparação parcial
-            texto_norm = unicodedata.normalize('NFD', str(texto).lower())
-            texto_norm = "".join([c for c in texto_norm if not unicodedata.combining(c)])
-            # Remove espaços extras (múltiplos espaços viram um só) e strip
-            texto_norm = " ".join(texto_norm.split())
-            return os.path.splitext(texto_norm)[0]
+            return normalize_name(texto)
 
         current_mode = self.relocate_mode.get()
         dry_run = self.just_verify.get()
@@ -444,6 +537,7 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
             
             file_index = defaultdict(list)
             size_index = defaultdict(list)
+            metadata_index = defaultdict(list)
             
             for raiz, diretorios, arquivos in os.walk(busca_dir):
                 # Pula pastas ocultas (ex: .trash) e de sistema para melhor performance
@@ -463,7 +557,20 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                         try:
                             f_size = os.path.getsize(f_path)
                             size_index[f_size].append(f_path)
-                        except: pass
+                        except:
+                            pass
+
+                    if f.lower().endswith((".mp3", ".m4a", ".flac", ".wav", ".aiff")):
+                        try:
+                            tag = TinyTag.get(f_path)
+                            title = getattr(tag, "title", None) or ""
+                            artist = getattr(tag, "artist", None) or ""
+                            for meta_text in [title, artist, f"{artist} {title}", f"{title} {artist}"]:
+                                meta_key = normalizar_nome(meta_text)
+                                if meta_key:
+                                    metadata_index[meta_key].append(f_path)
+                        except Exception:
+                            pass
 
             total_indexado = sum(len(v) for v in file_index.values())
             self.manager.log(log_paths, f"[INDEX] {total_indexado} arquivo(s) mapeados (Nomes e Tamanhos).")
@@ -476,6 +583,14 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                 drive = self._get_vol_id(db_path)
                 report_lines.append(f"\n[BANCO DRIVE {drive}] {db_path}\n" + "="*50 + "\n")
                 
+                if self.fazer_backup.get():
+                    self.after(0, lambda d=drive: self.lbl_status.configure(text=f"[{d}] " + self.txt.get("mik_status_backup", "[BACKUP] {message} ({drive})").format(message=self.txt.get('status_backup', 'Criando backup do banco de dados...'), drive=d)))
+                    backup_path = create_database_backup(db_path, backup_dir=os.path.join(self.manager.storage_dir, "Backup_DB"))
+                    if backup_path:
+                        self.manager.log(log_paths, f"[BACKUP] Backup criado: {backup_path}")
+                    else:
+                        self.manager.log(log_paths, f"[BACKUP] ERRO ao criar backup: {db_path}")
+
                 self.after(0, lambda d=drive: self.lbl_status.configure(text=f"[{d}] " + self.txt["status_scanning_missing"]))
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)
                 missing_tracks = [t for t in tracks if not os.path.exists(t.get("caminho_absoluto", ""))]
@@ -511,21 +626,25 @@ class RelocateLostTracksWindow(ctk.CTkToplevel):
                     found_paths = []
                     match_type = "Exato"
                     search_key = normalizar_nome(fname) # Nome do arquivo que está no banco (sem extensão)
-                    
-                    # 1. Tentativa por nome exato (mais rápido)
-                    if search_key in file_index:
-                        found_paths = file_index[search_key]
-                    
-                    # 2. Busca Inteligente (Tamanho + Nome Parcial) 
-                    # Agora a busca inteligente funciona em qualquer modo se o nome exato falhar, 
-                    # mas o rótulo da ação respeita a UI
-                    if not found_paths and track_size and track_size in size_index:
-                        for cand_path in size_index[track_size]:
-                            cand_name = normalizar_nome(os.path.basename(cand_path))
-                            # Se o tamanho bate e o nome original está contido no novo (ou vice-versa)
-                            if search_key in cand_name or cand_name in search_key:
-                                found_paths.append(cand_path)
-                                match_type = "Fuzzy"
+                    search_keys = [search_key]
+
+                    if track.get("artist") or track.get("title"):
+                        artist_meta = normalizar_nome(track.get("artist"))
+                        title_meta = normalizar_nome(track.get("title"))
+                        if artist_meta and title_meta:
+                            search_keys.extend([f"{artist_meta} {title_meta}", f"{title_meta} {artist_meta}"])
+                        elif artist_meta:
+                            search_keys.append(artist_meta)
+                        elif title_meta:
+                            search_keys.append(title_meta)
+
+                    found_paths, match_type = find_matching_paths(
+                        search_keys,
+                        file_index,
+                        metadata_index=metadata_index,
+                        size_index=size_index,
+                        track_size=track_size,
+                    )
 
                     if found_paths:
                         report_item = [f"MÚSICA: {fname}"]

@@ -3,11 +3,12 @@
 import argparse
 import sqlite3
 import time
-import shutil
 from datetime import datetime
 from pathlib import Path
 import sys
 sys.stdout.reconfigure(encoding='utf-8')
+
+from backup_utils import create_database_backup
 
 
 # -----------------------------
@@ -347,29 +348,19 @@ def process_playlist(
 Cria um backup do banco de dados do Engine DJ.
 """
 def create_backup(db_path):
-
-    db_folder = Path(db_path).parent
-
-    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-    backup_file = (
-        db_folder.parent /
-        f"Backup_EngineDJ_{timestamp}"
-    )
+    db_path = Path(db_path)
+    backup_path = create_database_backup(db_path)
 
     print("\n==============================")
     print("CRIANDO BACKUP")
     print("==============================")
-    print(f"Origem : {db_folder}")
-    print(f"Destino: {backup_file}.zip")
+    print(f"Origem : {db_path.parent}")
+    print(f"Destino: {backup_path}")
 
-    shutil.make_archive(
-        str(backup_file),
-        "zip",
-        str(db_folder)
-    )
-
-    print("[OK] Backup concluído\n")
+    if backup_path:
+        print("[OK] Backup concluído\n")
+    else:
+        print("[ERRO] Não foi possível criar o backup\n")
 
 # -----------------------------
 # MAIN

@@ -20,6 +20,7 @@ from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME,
 from hotcue_normalizer import normalize_hotcues
 from engine_hotcues import format_time, parse_quick_cues, CueWrite, encode_quick_cues
 from report_gui import ReportWindow
+from backup_utils import create_database_backup
 
 class MixedInKeyWindow(ctk.CTkToplevel):
     """
@@ -410,7 +411,11 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                 drive = self.manager._get_vol_id(db_path)
                 if self.fazer_backup.get():
                     self.after(0, lambda d=drive: self.lbl_status.configure(text=self.txt.get("mik_status_backup", "[BACKUP] {message} ({drive})").format(message=self.txt.get('status_backup', 'Criando backup do banco de dados...'), drive=d), text_color="#3498DB"))
-                    self.manager.criar_backup_banco(db_path, log_paths)
+                    backup_path = create_database_backup(db_path, backup_dir=os.path.join(self.manager.storage_dir, "Backup_DB"))
+                    if backup_path:
+                        self.manager.log(log_paths, f"[BACKUP] Backup criado: {backup_path}")
+                    else:
+                        self.manager.log(log_paths, f"[BACKUP] ERRO ao criar backup: {db_path}")
                     self.after(0, lambda: self.lbl_status.configure(text=self.txt.get("status_counting", "Calculando..."), text_color="#3498DB"))
                 self.manager.log(log_paths, f"\n--- PROCESSANDO BANCO: {db_path} (Drive {drive}) ---")
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)

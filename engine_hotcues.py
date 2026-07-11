@@ -25,6 +25,8 @@ from typing import Any, Iterable
 from urllib.parse import urlparse
 from mutagen import File
 
+from backup_utils import create_database_file_backup
+
 
 @dataclass
 class Hotcue:
@@ -917,9 +919,7 @@ def import_vdj_matches(
     if not selected:
         return {"updated": 0, "backup": "", "tracks": []}
 
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    backup_path = db_path.with_name(f"{db_path.name}.backup-{stamp}")
-    shutil.copy2(db_path, backup_path)
+    backup_path = create_database_file_backup(db_path, backup_dir=db_path.parent)
 
     updated_tracks = []
     conn = sqlite3.connect(db_path)
@@ -1858,9 +1858,7 @@ def cmd_import_vdj(args: argparse.Namespace) -> int:
 
         backup_path = None
         if not args.no_backup and not args.dry_run:
-            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-            backup_path = db_path.with_name(f"{db_path.name}.backup-{stamp}")
-            shutil.copy2(db_path, backup_path)
+            backup_path = create_database_file_backup(db_path, backup_dir=db_path.parent)
 
         if args.dry_run:
             print("DRY RUN: nenhuma alteracao foi gravada.")

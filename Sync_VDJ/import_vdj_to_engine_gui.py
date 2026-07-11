@@ -17,6 +17,7 @@ from constants import (IS_WIN, IS_MAC, VERSAO_ATUAL, APP_NAME,
                        COLOR_TEXT_MUTED, COLOR_SWITCH_OFF,
                        CORNER_RADIUS_NONE)
 from report_gui import ReportWindow
+from backup_utils import create_database_backup
 
 try:
     # Tenta importar o VDJManager para localizar as pastas MyLists
@@ -150,6 +151,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
             self.after(200, aplicar_icone)
 
         self.selected_vdj_playlist = ctk.StringVar()
+        self.fazer_backup = ctk.BooleanVar(value=self.manager.config.get("fazer_backup", True))
         self.vdj_manager = VDJManager()
         self.playlist_map = {} # Mapeia "Nome Exibido" -> "Caminho Real"
         
@@ -221,11 +223,21 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
         self.progress_bar.pack(pady=5)
         self.progress_bar.set(0)
 
+        self.check_backup = ctk.CTkSwitch(
+            self,
+            text=self.txt.get("mik_backup_switch_label", "Fazer backup do banco de dados"),
+            variable=self.fazer_backup,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=COLOR_SWITCH_OFF,
+            progress_color="#00E5A3"
+        )
+        self.check_backup.pack(pady=(0, 10))
+
         self.btn_run = ctk.CTkButton(self, text=self.txt.get("start_import_vdj_btn", "Iniciar Importação para o Engine DJ"), 
                                      font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
                                      fg_color="#D84343", text_color=COLOR_TEXT_NORMAL, hover_color="#CE2323", height=45, width=350, 
                                      corner_radius=CORNER_RADIUS_NONE, command=self.run_import)
-        self.btn_run.pack(pady=20)
+        self.btn_run.pack(pady=10)
 
         lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
@@ -358,6 +370,15 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
                 db_path = dbs_by_drive[drive]
                 self.manager.log(log_paths, f"\n--- PROCESSANDO DISCO {drive} ---")
                 self.manager.log(log_paths, f"Banco de dados: {db_path}", nivel="debug")
+
+                if self.fazer_backup.get():
+                    self.update_status(self.txt.get("mik_status_backup", "[BACKUP] {message} ({drive})").format(message=self.txt.get('status_backup', 'Criando backup do banco de dados...'), drive=drive), "#3498DB")
+                    backup_path = create_database_backup(db_path, backup_dir=os.path.join(self.manager.storage_dir, "Backup_DB"))
+                    if backup_path:
+                        self.manager.log(log_paths, f"[BACKUP] Backup criado: {backup_path}")
+                    else:
+                        self.manager.log(log_paths, f"[BACKUP] ERRO ao criar backup: {db_path}")
+                    self.update_status(self.txt.get("status_reading_vdj_playlist", "Lendo playlist VDJ..."), "#00E5A3")
 
                 self.update_status(self.txt.get("importing_tracks_to_drive", "Importando {count} faixas para o banco do disco {drive}...").format(count=len(tracks), drive=drive), "#00E5A3")
                 
