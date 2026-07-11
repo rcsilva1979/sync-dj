@@ -87,10 +87,12 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         # Busca automática de bancos de dados Engine
         self.found_databases = self.manager.localizar_bancos_dados()
 
-        self.path_musicas = ctk.StringVar(value=self.manager.config.get("pasta_musicas", "")) # Mantém para estado interno
+        self.path_musicas = ctk.StringVar(value=self._normalizar_path(self.manager.config.get("pasta_musicas", ""))) # Mantém para estado interno
         self.path_db = ctk.StringVar(value="") # Volátil, selecionado automaticamente por disco
 
-        self.fazer_backup = ctk.BooleanVar(value=self.manager.config.get("fazer_backup", True))
+        # O backup automático começa sempre ligado na interface e só vale para a sessão atual.
+        self.manager.config["fazer_backup"] = True
+        self.fazer_backup = ctk.BooleanVar(value=True)
         self.importar_hotcue = ctk.BooleanVar(value=False)
         self.sobrescrever_hotcue = ctk.BooleanVar(value=False)
         self.remover_orfas = ctk.BooleanVar(value=False)
@@ -104,6 +106,12 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.construir_ui()
         self.detectar_banco_por_drive() # Tenta localizar o banco e carregar playlists no início
         self.validar_campos() # Validação inicial
+
+    def _normalizar_path(self, path):
+        """Normaliza o caminho para o separador do sistema operacional."""
+        if not path:
+            return ""
+        return os.path.normpath(path)
 
     def construir_ui(self):
         """
@@ -309,7 +317,8 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         """
         pasta = filedialog.askdirectory()
         if pasta:
-            self.path_musicas.set(pasta)
+            caminho_normalizado = self._normalizar_path(pasta)
+            self.path_musicas.set(caminho_normalizado)
             self.salvar_config_ui()
             # Recarrega as playlists após mudar a pasta, para atualizar o nome padrão
             self.carregar_playlists() 
@@ -468,7 +477,8 @@ class EngineSyncApp(ctk.CTkToplevel): # Alterado para CTkToplevel
         self.manager.config.update({
             "importar_hotcue": self.importar_hotcue.get(),
             "sobrescrever_hotcue": self.sobrescrever_hotcue.get(),
-            "remover_orfas": self.remover_orfas.get()
+            "remover_orfas": self.remover_orfas.get(),
+            "fazer_backup": self.fazer_backup.get()
         })
         
         config_data = {

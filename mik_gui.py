@@ -64,6 +64,8 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.selected_playlist = ctk.StringVar()
         # Variável booleana para controlar a opção de sobrescrever hotcues existentes.
         self.sobrescrever_hotcue = ctk.BooleanVar(value=False)
+        # Variável booleana para habilitar ou não o backup do banco antes da importação.
+        self.fazer_backup = ctk.BooleanVar(value=self.manager.config.get("fazer_backup", True))
         # Lista de caminhos para todos os bancos de dados Engine DJ encontrados no sistema.
         self.found_databases = localizar_bancos_dados_engine()
         # Mapeamento de caminhos de playlist para uma lista de tuplas (caminho_db, playlist_id).
@@ -125,7 +127,16 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color=COLOR_SWITCH_OFF, progress_color="#3498DB"
         )
-        self.check_overwrite.pack(pady=10)
+        self.check_overwrite.pack(pady=6)
+
+        self.check_backup = ctk.CTkSwitch(
+            self,
+            text=self.txt.get("mik_backup_switch_label", "Fazer backup do banco de dados"),
+            variable=self.fazer_backup,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=COLOR_SWITCH_OFF, progress_color="#3498DB"
+        )
+        self.check_backup.pack(pady=(0, 10))
 
         # Botão para listar as músicas e seus hotcues (lidos das tags MP3).
         # Botão de Listagem
@@ -259,7 +270,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             processed = 0
             for db_path, pl_id in db_pl_pairs:
                 drive = self.manager._get_vol_id(db_path)
-                all_report_lines.append(f"--- BANCO DETECTADO NO DRIVE {drive} ---\n")
+                all_report_lines.append(self.txt.get("mik_report_database_header", "--- BANCO DETECTADO NO DRIVE {drive} ---").format(drive=drive) + "\n")
                 
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)
                 
@@ -270,7 +281,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                     # Atualiza progresso e status na janela principal
                     self.after(0, lambda p=progress, m=title_track, d=drive: [
                         self.progress_bar.set(p),
-                        self.lbl_status.configure(text=f"[{d}] Lendo: {m}")
+                        self.lbl_status.configure(text=self.txt.get("mik_status_processing_track", "[{drive}] Lendo: {track}").format(drive=d, track=m))
                     ])
 
                     artist = t.get('artist', self.txt.get('unknown_artist', 'Desconhecido'))
@@ -279,7 +290,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                     filepath = t.get("caminho_absoluto")
 
                     lines = [
-                        f"FAIXA: {artist} - {title}\n",
+                        self.txt.get("mik_report_track_prefix", "FAIXA: {artist} - {title}").format(artist=artist, title=title) + "\n",
                         f"  {self.txt.get('mik_filename_label', 'Nome do Arquivo:')} {filename}\n",
                         f"  {self.txt.get('mik_location_label', 'Localização:')} {filepath}\n"
                     ]
@@ -291,22 +302,22 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                             if hotcues:
                                 header_left = self.txt.get('mik_hotcue_left_col_header', 'Hotcues (1-4)')
                                 header_right = self.txt.get('mik_hotcue_right_col_header', 'Hotcues (5-8)')
-                                lines.append(f"  ↳ [TAG] {header_left:<40} {header_right}\n")
+                                lines.append(f"  {self.txt.get('mik_report_tag_prefix', '↳ [TAG]')} {header_left:<40} {header_right}\n")
                                 lines.append(f"  {'-'*45} {'-'*45}\n")
 
                                 hotcues_left = hotcues[:4]
                                 hotcues_right = hotcues[4:8]
                                 max_cues = max(len(hotcues_left), len(hotcues_right))
                                 for i in range(max_cues):
-                                    l_info = f"Cue {hotcues_left[i].get('num')}: {hotcues_left[i].get('name', '')} @ {format_time(hotcues_left[i].get('pos_seconds'))}" if i < len(hotcues_left) else ""
-                                    r_info = f"Cue {hotcues_right[i].get('num')}: {hotcues_right[i].get('name', '')} @ {format_time(hotcues_right[i].get('pos_seconds'))}" if i < len(hotcues_right) else ""
+                                    l_info = f"{self.txt.get('mik_report_hotcue_label', 'Cue')} {hotcues_left[i].get('num')}: {hotcues_left[i].get('name', '')} @ {format_time(hotcues_left[i].get('pos_seconds'))}" if i < len(hotcues_left) else ""
+                                    r_info = f"{self.txt.get('mik_report_hotcue_label', 'Cue')} {hotcues_right[i].get('num')}: {hotcues_right[i].get('name', '')} @ {format_time(hotcues_right[i].get('pos_seconds'))}" if i < len(hotcues_right) else ""
                                     lines.append(f"  {l_info:<45} {r_info}\n")
                             else:
-                                lines.append(f"  ↳ [TAG] {self.txt.get('mik_no_hotcues_found', 'Nenhum Hotcue encontrado na tag MP3.')}\n")
+                                lines.append(f"  {self.txt.get('mik_report_tag_prefix', '↳ [TAG]')} {self.txt.get('mik_no_hotcues_found', 'Nenhum Hotcue encontrado na tag MP3.')}\n")
                         except Exception as e:
-                            lines.append(f"  ↳ [ERRO] {self.txt.get('mik_error_reading_hotcues', 'Falha ao ler hotcues:')} {e}\n")
+                            lines.append(f"  {self.txt.get('mik_report_error_prefix', '↳ [ERRO]')} {self.txt.get('mik_error_reading_hotcues', 'Falha ao ler hotcues:')} {e}\n")
                     else:
-                        lines.append(f"  ↳ [INFO] {self.txt.get('mik_detection_info', 'Detecção disponível apenas para arquivos MP3 locais.')}\n")
+                        lines.append(f"  {self.txt.get('mik_report_info_prefix', '↳ [INFO]')} {self.txt.get('mik_detection_info', 'Detecção disponível apenas para arquivos MP3 locais.')}\n")
                     
                     lines.append("-" * 40 + "\n")
                     all_report_lines.extend(lines)
@@ -331,8 +342,8 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         """
         ReportWindow(
             self,
-            title=f"Músicas e Hotcues: {playlist_name}",
-            header="CONTEÚDO DA PLAYLIST",
+            title=self.txt.get("mik_report_title", "Músicas e Hotcues: {playlist_name}").format(playlist_name=playlist_name),
+            header=self.txt.get("mik_report_header", "CONTEÚDO DA PLAYLIST"),
             content=content,
             playlist_name=playlist_name,
             txt=self.txt
@@ -345,8 +356,11 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         # Verifica se o Engine DJ está aberto (mesma lógica e mensagens do Mirror Sync)
         if self.manager.engine_esta_aberto():
             messagebox.showwarning(
-                "Engine DJ em execução",
-                "Feche o Engine DJ antes de executar a sincronização ou limpeza.\n\nNenhuma alteração foi feita."
+                self.txt.get("mik_engine_running_title", "Engine DJ em execução"),
+                self.txt.get(
+                    "mik_engine_running_message",
+                    "Feche o Engine DJ antes de executar a sincronização ou limpeza.\n\nNenhuma alteração foi feita."
+                )
             )
             return
 
@@ -375,9 +389,9 @@ class MixedInKeyWindow(ctk.CTkToplevel):
             self.manager.log(log_paths, f"--- INÍCIO DA IMPORTAÇÃO DE HOTCUES [{playlist_name}] ---")
             overwriting = self.sobrescrever_hotcue.get()
             report_lines = [
-                f"INÍCIO DA IMPORTAÇÃO (MIK): {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}\n",
-                f"Playlist: {playlist_name}\n",
-                f"Modo Sobrescrever: {'Ativado' if overwriting else 'Desativado'}\n",
+                self.txt.get("mik_import_report_start", "INÍCIO DA IMPORTAÇÃO (MIK): {datetime}").format(datetime=datetime.now().strftime('%d/%m/%Y %H:%M:%S')) + "\n",
+                self.txt.get("mik_import_report_playlist", "Playlist: {playlist_name}").format(playlist_name=playlist_name) + "\n",
+                self.txt.get("mik_import_report_overwrite_mode", "Modo Sobrescrever: {mode}").format(mode=self.txt.get("enabled", "Ativado") if overwriting else self.txt.get("disabled", "Desativado")) + "\n",
                 "="*60 + "\n\n"
             ]
             total_tracks = 0
@@ -394,6 +408,10 @@ class MixedInKeyWindow(ctk.CTkToplevel):
 
             for db_path, pl_id in db_pl_pairs:
                 drive = self.manager._get_vol_id(db_path)
+                if self.fazer_backup.get():
+                    self.after(0, lambda d=drive: self.lbl_status.configure(text=self.txt.get("mik_status_backup", "[BACKUP] {message} ({drive})").format(message=self.txt.get('status_backup', 'Criando backup do banco de dados...'), drive=d), text_color="#3498DB"))
+                    self.manager.criar_backup_banco(db_path, log_paths)
+                    self.after(0, lambda: self.lbl_status.configure(text=self.txt.get("status_counting", "Calculando..."), text_color="#3498DB"))
                 self.manager.log(log_paths, f"\n--- PROCESSANDO BANCO: {db_path} (Drive {drive}) ---")
                 tracks = get_tracks_by_playlist_id(db_path, pl_id)
                 
@@ -405,7 +423,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                     for t in tracks:
                         processed_tracks += 1
                         progress = processed_tracks / total_tracks
-                        self.after(0, lambda p=progress, m=t.get('title'): [self.progress_bar.set(p), self.lbl_status.configure(text=f"[{drive}] {m}")])
+                        self.after(0, lambda p=progress, m=t.get('title'): [self.progress_bar.set(p), self.lbl_status.configure(text=self.txt.get("mik_status_processing_track", "[{drive}] Lendo: {track}").format(drive=drive, track=m))])
                         title_full = f"{t.get('artist')} - {t.get('title')}"
                         self.manager.log(log_paths, f"[ARQUIVO] {title_full}")
 
@@ -492,8 +510,8 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                             cursor.execute("INSERT INTO PerformanceData (trackId, quickCues) VALUES (?, ?) ON CONFLICT(trackId) DO UPDATE SET quickCues = excluded.quickCues", (track_id, sqlite3.Binary(new_blob)))
                             updated_tracks_count += 1
                             
-                            acao_label = "SOBREESCRITO" if overwriting else "IMPORTADO"
-                            report_lines.append(f"[{acao_label}] {title_full}\n  ↳ {len(final_cues)} hotcues gravados no banco.\n")
+                            acao_label = self.txt.get("mik_report_action_overwrite", "SOBREESCRITO") if overwriting else self.txt.get("mik_report_action_import", "IMPORTADO")
+                            report_lines.append(f"[{acao_label}] {title_full}\n  {self.txt.get('mik_report_hotcue_written', '↳ {count} hotcues gravados no banco.').format(count=len(final_cues))}\n")
                         else:
                             self.manager.log(log_paths, f"  [SKIP] Nenhuma alteração necessária (Banco e Tags já sincronizados).", nivel="debug")
 
@@ -503,9 +521,12 @@ class MixedInKeyWindow(ctk.CTkToplevel):
                     self.manager.log(log_paths, f"  [ERRO CRÍTICO] Falha no banco {db_path}: {e}")
 
             if updated_tracks_count == 0:
-                report_lines.append("Nenhuma alteração foi necessária. Todas as músicas já possuem hotcues sincronizados ou não foram encontrados hotcues nas tags.")
+                report_lines.append(self.txt.get("mik_import_report_none_changed", "Nenhuma alteração foi necessária. Todas as músicas já possuem hotcues sincronizados ou não foram encontrados hotcues nas tags."))
 
-            self.manager.log(log_paths, f"\n{'='*60}\nIMPORTAÇÃO CONCLUÍDA\nTotal analisado: {processed_tracks}\nAtualizados: {updated_tracks_count}\n{'='*60}")
+            self.manager.log(
+                log_paths,
+                f"\n{'='*60}\n{self.txt.get('mik_import_report_completed', 'IMPORTAÇÃO CONCLUÍDA')}\n{self.txt.get('mik_import_report_total', 'Total analisado: {processed_tracks}').format(processed_tracks=processed_tracks)}\n{self.txt.get('mik_import_report_updated', 'Atualizados: {updated_tracks_count}').format(updated_tracks_count=updated_tracks_count)}\n{'='*60}"
+            )
             self.after(0, lambda: self.finalizar_importacao(updated_tracks_count, "\n".join(report_lines)))
 
         threading.Thread(target=task, daemon=True).start()
@@ -519,7 +540,7 @@ class MixedInKeyWindow(ctk.CTkToplevel):
         self.combo_playlist.configure(state="normal")
         self.progress_bar.set(1.0)
         
-        status_msg = f"Importação concluída: {count} músicas atualizadas."
+        status_msg = self.txt.get("mik_import_status_complete", "Importação concluída: {count} músicas atualizadas.").format(count=count)
         self.lbl_status.configure(text=status_msg, text_color="#00E5A3")
 
         # Abre o relatório padronizado usando o Template ReportWindow

@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import re
 import sqlite3
 import threading
 import locale
@@ -294,6 +295,79 @@ class SyncManager:
         self.config = self.load_config()
         self.cancel_requested = False
 
+    def _normalizar_path(self, path):
+        """Normaliza caminhos de pasta para o formato do sistema operacional."""
+        if not isinstance(path, str):
+            return path
+        path = path.strip()
+        if not path:
+            return path
+        return os.path.normpath(path)
+
+    def _read_config_file(self):
+        """Lê o arquivo de configuração, aceitando JSON padrão e o formato simples do app."""
+        if not os.path.exists(self.config_file):
+            return {}
+        with open(self.config_file, "r", encoding="utf-8") as f:
+            text = f.read().strip()
+        if not text:
+            return {}
+
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            config = {}
+            for raw_line in text.splitlines():
+                line = raw_line.strip()
+                if not line or line in {"{", "}"}:
+                    continue
+                match = re.match(r'^"([^"]+)"\s*:\s*(.+?)\s*,?\s*$', line)
+                if not match:
+                    continue
+                key, value = match.groups()
+                value = value.strip()
+                if value.lower() == "true":
+                    config[key] = True
+                elif value.lower() == "false":
+                    config[key] = False
+                elif value.lower() == "null":
+                    config[key] = None
+                elif value.startswith('"') and value.endswith('"'):
+                    config[key] = value[1:-1].replace('\\"', '"')
+                else:
+                    try:
+                        config[key] = int(value)
+                    except ValueError:
+                        try:
+                            config[key] = float(value)
+                        except ValueError:
+                            config[key] = value
+            return config
+
+    def _write_config_file(self, config_data):
+        """Escreve o arquivo de configuração em formato JSON válido."""
+        lines = ["{"]
+        items = list(config_data.items())
+        for index, (key, value) in enumerate(items):
+            comma = "," if index < len(items) - 1 else ""
+            if isinstance(value, bool):
+                serialized_value = "true" if value else "false"
+            elif value is None:
+                serialized_value = "null"
+            elif isinstance(value, (int, float)) and not isinstance(value, bool):
+                serialized_value = str(value)
+            elif isinstance(value, str):
+                serialized_value = json.dumps(value, ensure_ascii=False)
+            else:
+                serialized_value = json.dumps(value, ensure_ascii=False)
+            lines.append(f'    "{key}": {serialized_value}{comma}')
+        lines.append("}")
+        try:
+            with open(self.config_file, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except Exception:
+            pass
+
     def load_config(self):
         if not os.path.exists(self.config_file):
             defaults = {
@@ -303,14 +377,18 @@ class SyncManager:
                 "auto_update": True,
                 "app_version": VERSAO_ATUAL
             }
-            try:
-                with open(self.config_file, "w", encoding="utf-8") as f:
-                    json.dump(defaults, f, indent=4, ensure_ascii=False)
-            except Exception: pass
+            self._write_config_file(defaults)
             return defaults
         try:
-            with open(self.config_file, "r", encoding="utf-8") as f: return json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError): return {}
+            config = self._read_config_file()
+            if isinstance(config, dict):
+                if "pasta_musicas" in config:
+                    config["pasta_musicas"] = self._normalizar_path(config.get("pasta_musicas"))
+                if "path_db" in config:
+                    config["path_db"] = self._normalizar_path(config.get("path_db"))
+            return config
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
 
     def localizar_bancos_dados(self):
         return localizar_bancos_dados_engine()
@@ -318,14 +396,16 @@ class SyncManager:
     def save_config(self, data):
         self.config.update(data)
         # Filtra opções que o usuário pediu para não persistir no arquivo JSON
-        excluir = {"importar_hotcue", "sobrescrever_hotcue", "remover_orfas", "path_db"}
+        excluir = {"importar_hotcue", "sobrescrever_hotcue", "remover_orfas", "path_db", "fazer_backup"}
         config_persistente = {k: v for k, v in self.config.items() if k not in excluir}
+        # Normaliza caminhos antes de gravar no JSON
+        if "pasta_musicas" in config_persistente:
+            config_persistente["pasta_musicas"] = self._normalizar_path(config_persistente.get("pasta_musicas"))
+        if "path_db" in config_persistente:
+            config_persistente["path_db"] = self._normalizar_path(config_persistente.get("path_db"))
         # Inclui a versão para controle de compatibilidade futura
         config_persistente["app_version"] = VERSAO_ATUAL
-        try:
-            with open(self.config_file, "w", encoding="utf-8") as f:
-                json.dump(config_persistente, f, indent=4, ensure_ascii=False)
-        except Exception: pass
+        self._write_config_file(config_persistente)
 
     def engine_esta_aberto(self):
         try:
@@ -487,6 +567,32 @@ class SyncManager:
             
         return removidas_count
 
+    def criar_backup_banco(self, db_path, log_paths=None):
+        """Cria um backup em ZIP do diretório do banco de dados, se possível."""
+        if not db_path or not os.path.exists(db_path):
+            if log_paths:
+                self.log(log_paths, f"[BACKUP] Banco não encontrado para backup: {db_path}")
+            return None
+
+        try:
+            backup_dir = os.path.join(self.storage_dir, "Backup_DB")
+            if not os.path.exists(backup_dir):
+                os.makedirs(backup_dir)
+
+            db_folder = os.path.dirname(db_path)
+            drive = self._get_vol_id(db_path).replace(":", "").replace(" ", "_") or "PC"
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            backup_name = os.path.join(backup_dir, f"Backup_Engine_Drive_{drive}_{timestamp}")
+            shutil.make_archive(backup_name, "zip", db_folder)
+            backup_path = f"{backup_name}.zip"
+            if log_paths:
+                self.log(log_paths, f"[BACKUP] Backup criado: {backup_path}")
+            return backup_path
+        except Exception as e:
+            if log_paths:
+                self.log(log_paths, f"[BACKUP] ERRO ao criar backup: {e}")
+            return None
+
     def motor_sincronizacao(self, ui_strings, progress_callback, db_path):
         self.cancel_requested = False
         pasta = self.config.get("pasta_musicas", "")
@@ -506,21 +612,7 @@ class SyncManager:
 
         if self.config.get("fazer_backup"):
             progress_callback(ui_strings["status_backup"], 0)
-            try:
-                backup_dir = os.path.join(self.storage_dir, "Backup_DB")
-                if not os.path.exists(backup_dir):
-                    os.makedirs(backup_dir)
-
-                db_folder = os.path.dirname(db_path)
-                # Identifica o disco (ex: C, D) para incluir no nome do backup
-                drive = self._get_vol_id(db_path).replace(":", "").replace(" ", "_") or "PC"
-
-                timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-                backup_name = os.path.join(backup_dir, f"Backup_Engine_Drive_{drive}_{timestamp}")
-                shutil.make_archive(backup_name, "zip", db_folder) # type: ignore
-                self.log(log_paths, f"[BACKUP] Backup criado: {backup_name}.zip")
-            except Exception as e:
-                self.log(log_paths, f"[BACKUP] ERRO ao criar backup: {e}")
+            self.criar_backup_banco(db_path, log_paths)
 
         for raiz, _, arquivos in os.walk(pasta):
             arquivos[:] = [a for a in arquivos if not a.startswith('.')] # Ignorar arquivos ocultos
