@@ -1,7 +1,22 @@
 import os
 import sqlite3
 import string
+import subprocess
 from constants import IS_WIN, IS_MAC
+
+
+def engine_dj_esta_aberto():
+    """Informa se o Engine DJ ou seu serviço de biblioteca está em execução."""
+    try:
+        if IS_WIN:
+            processes = subprocess.check_output("tasklist", shell=True, text=True).lower()
+        elif IS_MAC:
+            processes = subprocess.check_output(["ps", "-ax"], text=True).lower()
+        else:
+            return False
+        return any(name in processes for name in ("enginedj.exe", "engine dj.exe", "engine dj", "engine library service"))
+    except Exception:
+        return False
  
 # Função para obter os títulos das playlists de um banco de dados Engine DJ
 def get_playlists_from_db(db_path):
@@ -95,6 +110,9 @@ def get_tracks_by_playlist_id(db_path, playlist_id):
             if row:
                 track_data = dict(row)
                 track_data["entry_id"] = ent["entry_id"]
+                # Preserva a origem da faixa para que playlists possam referenciá-la
+                # corretamente, mesmo quando ela pertence a outro banco Engine DJ.
+                track_data["databaseUuid"] = target_uuid
                 rel_path = track_data.get("path")
                 engine_lib_dir = lib_dirs.get(target_uuid) or os.path.dirname(os.path.dirname(os.path.abspath(target_db_path)))
                 
@@ -108,6 +126,31 @@ def get_tracks_by_playlist_id(db_path, playlist_id):
     except Exception as e:
         print(f"Erro ao obter faixas da playlist ID '{playlist_id}': {e}")
     return tracks_info
+
+
+def get_all_tracks_from_database(db_path):
+    """Retorna o catálogo de faixas de um banco em uma única consulta."""
+    if not db_path or not os.path.exists(db_path):
+        return []
+    try:
+        database_uuid = get_database_uuid(db_path)
+        library_dir = os.path.dirname(os.path.dirname(os.path.abspath(db_path)))
+        with sqlite3.connect(db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT id, title, artist, album, path, filename, length, bpm, year, fileType, fileBytes "
+                "FROM Track"
+            ).fetchall()
+        tracks = []
+        for row in rows:
+            track = dict(row)
+            track["databaseUuid"] = database_uuid
+            if track.get("path"):
+                track["caminho_absoluto"] = os.path.normpath(os.path.join(library_dir, track["path"]))
+            tracks.append(track)
+        return tracks
+    except sqlite3.Error:
+        return []
 
 # Função para obter o UUID de um banco de dados Engine DJ
 def get_database_uuid(db_path):

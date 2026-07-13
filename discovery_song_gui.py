@@ -159,7 +159,8 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.master = master
 
         self.title(f"{self.txt['discovery_title']} ({VERSAO_ATUAL})")
-        self.geometry("650x590")
+        self.geometry("650x680")
+        self.minsize(650, 680)
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
 
@@ -176,6 +177,7 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.simulation_mode = ctk.BooleanVar(value=False)
         self.start_offset_var = ctk.StringVar(value="Início")
         self.final_ffmpeg_path: str | None = None
+        self._cancel_requested = threading.Event()
 
         self.log_paths = None
         self.report_content = [] # Alterado para lista de tuplas (mensagem, tag_cor)
@@ -277,13 +279,23 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         self.progress_bar.pack(padx=40, pady=5)
         self.progress_bar.set(0)
 
-        # Botão Ação
-        self.btn_start = ctk.CTkButton(self, text=self.txt["discovery_btn_action"], 
+        # Botões de Ação
+        frame_actions = ctk.CTkFrame(self, fg_color="transparent")
+        frame_actions.pack(pady=(20, 10), padx=40, fill="x")
+
+        self.btn_start = ctk.CTkButton(frame_actions, text=self.txt["discovery_btn_action"], 
                                        font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
                                        height=45, fg_color="#9B59B6", hover_color="#8E44AD", text_color="#FFFFFF",
                                        corner_radius=CORNER_RADIUS_NONE, command=self.start_thread,
                                        state="disabled")
-        self.btn_start.pack(pady=20, padx=40, fill="x")
+        self.btn_start.pack(fill="x")
+
+        self.btn_cancel = ctk.CTkButton(frame_actions, text="Cancelar", 
+                                        font=ctk.CTkFont(family=FONT_FAMILY, size=16, weight="bold"),
+                                        height=35, fg_color="#C0392B", hover_color="#A93226", text_color="#FFFFFF",
+                                        corner_radius=CORNER_RADIUS_NONE, command=self.request_cancel,
+                                        state="disabled")
+        self.btn_cancel.pack(fill="x", pady=(8, 0))
 
         # Habilita o botão somente quando uma pasta for selecionada
         self.folder_path.trace_add("write", self._on_folder_changed)
@@ -313,8 +325,17 @@ class DiscoverySongWindow(ctk.CTkToplevel):
                 self.manager.log(self.log_paths, message)
             self.report_content.append([(message, tag)]) # Store as a list with one tuple
 
+    def request_cancel(self):
+        """Solicita o encerramento amigável do processamento em execução."""
+        self._cancel_requested.set()
+        if self.btn_cancel:
+            self.btn_cancel.configure(state="disabled")
+        self.progress_text.set("⏹️ Cancelando processo...")
+
     def start_thread(self):
+        self._cancel_requested.clear()
         self.btn_start.configure(state="disabled")
+        self.btn_cancel.configure(state="normal")
         threading.Thread(target=self.run_async_process, daemon=True).start()
 
     def run_async_process(self):
@@ -361,11 +382,16 @@ class DiscoverySongWindow(ctk.CTkToplevel):
 
         # 3. Inicia o loop
         asyncio.run(self.process_logic())
-        self.progress_text.set(self.txt.get("status_done", "✅ Concluído!"))
+        if self._cancel_requested.is_set():
+            self.progress_text.set("⏹️ Processo cancelado pelo usuário.")
+        else:
+            self.progress_text.set(self.txt.get("status_done", "✅ Concluído!"))
+
         self.after(0, lambda: self.btn_start.configure(state='normal'))
+        self.after(0, lambda: self.btn_cancel.configure(state='disabled'))
 
         # Abrir relatório detalhado se configurado nas preferências
-        if self.manager.config.get("show_report", True):
+        if not self._cancel_requested.is_set() and self.manager.config.get("show_report", True):
             folder_name = os.path.basename(os.path.normpath(self.folder_path.get()))
             self.after(0, lambda: ReportWindow(
                 self,
@@ -459,6 +485,10 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         _offset_map = {"Início": 0, "30s": 30, "1min": 60, "2min": 120}
         user_start_offset = _offset_map.get(self.start_offset_var.get(), 0)
 
+        if self._cancel_requested.is_set():
+            self.log("⏹️ Cancelado antes da identificação.", tag="debug")
+            return {}
+
         # --- Tentativa 1: início escolhido pelo usuário ---
         # recognize_song() usa pydub internamente, que precisa do ffmpeg para
         # decodificar MP3/M4A. Como o pydub não localiza o ffmpeg bundled com
@@ -501,6 +531,10 @@ class DiscoverySongWindow(ctk.CTkToplevel):
         ]
 
         for attempt_num, offset in enumerate(valid_offsets, start=2):
+            if self._cancel_requested.is_set():
+                self.log("⏹️ Cancelado durante as tentativas de identificação.", tag="debug")
+                return {}
+
             self.log(
                 f"🔄 [DEBUG] Tentativa {attempt_num} - Offset: {offset}s",
                 tag="debug"
@@ -610,19 +644,24 @@ class DiscoverySongWindow(ctk.CTkToplevel):
             except Exception:
                 pass
 
+            if self._cancel_requested.is_set():
+                self.log("⏹️ Processo cancelado pelo usuário.")
+                break
+
             title, artist = get_song_tags(file_path)
-            
-            # Lógica: Só pulamos se já tiver tags E (se a capa for solicitada, ele já deve ter uma)
-            possui_tags = title and artist
+
+            # Quando a sobrescrita está desligada, só processamos arquivos sem title preenchida.
+            # Isso evita reprocessar músicas já identificadas anteriormente.
+            possui_title = bool(title and str(title).strip())
             precisa_de_capa = self.include_cover.get() and not has_cover(file_path)
 
-            if not self.overwrite_tags.get() and possui_tags and not precisa_de_capa:
-                self.log(f"✅ Já possui tags e capa (ou não solicitada): {artist} - {title}")
+            if not self.overwrite_tags.get() and possui_title:
+                self.log(f"⏭️ Ignorado por já possuir title gravada: {artist or 'Artista desconhecido'} - {title}")
                 stats["ignorados"] += 1
                 continue
 
             faltando = []
-            if not possui_tags: faltando.append("Tags")
+            if not title: faltando.append("Tags")
             if precisa_de_capa: faltando.append("Capa")
             msg_identificando = f"🔍 {filename} (Faltando: {' & '.join(faltando)}). Identificando..."
             

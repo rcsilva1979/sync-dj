@@ -9,6 +9,7 @@ from constants import (IS_WIN, APP_NAME, VERSAO_ATUAL, FONT_FAMILY,
                        COLOR_ACCENT_GREEN) # Importar COLOR_ACCENT_GREEN para o segundo botão
 from import_device_playlist_gui import ImportDevicePlaylistWindow # Importar a nova janela
 from engine_history_gui import EngineHistoryWindow
+from smart_playlist_gui import SmartPlaylistWindow
 
 class EngineToolsWindow(ctk.CTkToplevel):
     """
@@ -71,6 +72,13 @@ class EngineToolsWindow(ctk.CTkToplevel):
                      corner_radius=CORNER_RADIUS_NONE, command=self.abrir_export_history)
         btn2.pack(pady=10)
 
+        btn3 = ctk.CTkButton(button_frame, text="Criar Smart Playlist",
+                            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+                            height=40, width=250, fg_color="#8E44AD",
+                            text_color=COLOR_TEXT_NORMAL, hover_color="#6C3483",
+                            corner_radius=CORNER_RADIUS_NONE, command=self.abrir_smart_playlist)
+        btn3.pack(pady=10)
+
         # Rodapé
         lbl_footer = ctk.CTkLabel(self, text=f"{APP_NAME} ({VERSAO_ATUAL})", font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED)
         lbl_footer.pack(side="bottom", pady=(5, 10))
@@ -84,3 +92,9 @@ class EngineToolsWindow(ctk.CTkToplevel):
         history_window = EngineHistoryWindow(self, self.txt)
         history_window.lift()
         history_window.focus()
+
+    def abrir_smart_playlist(self):
+        """Abre a janela para criar uma smart playlist a partir de uma música inicial."""
+        smart_window = SmartPlaylistWindow(self, self.txt)
+        smart_window.lift()
+        smart_window.focus()
