@@ -89,13 +89,26 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             self.after(200, aplicar_icone)
 
     def construir_ui(self):
+        logo_path = get_resource_path(os.path.join("images", "logo_smart_playlist.png"))
+        if os.path.exists(logo_path):
+            try:
+                logo = Image.open(logo_path)
+                self.logo_smart_playlist = ctk.CTkImage(
+                    light_image=logo,
+                    dark_image=logo,
+                    size=(260, 100),
+                )
+                ctk.CTkLabel(self, text="", image=self.logo_smart_playlist).pack(pady=(14, 2))
+            except Exception:
+                pass
+
         lbl_title = ctk.CTkLabel(
             self,
             text="CRIAR SMART PLAYLIST",
             font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"),
             text_color=COLOR_ACCENT_BLUE,
         )
-        lbl_title.pack(pady=(20, 10))
+        lbl_title.pack(pady=(8, 10))
 
         lbl_desc = ctk.CTkLabel(
             self,
