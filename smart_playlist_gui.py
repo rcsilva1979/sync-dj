@@ -96,7 +96,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
                 self.logo_smart_playlist = ctk.CTkImage(
                     light_image=logo,
                     dark_image=logo,
-                    size=(260, 100),
+                    size=(480, 90),
                 )
                 ctk.CTkLabel(self, text="", image=self.logo_smart_playlist).pack(pady=(14, 2))
             except Exception:
@@ -444,6 +444,28 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         except (OSError, sqlite3.Error, TypeError, ValueError):
             return self._read_track_metadata(track)
 
+    def _is_valid_candidate(self, base_meta, candidate_meta):
+        # GÊNERO obrigatório
+        if self._normalize_text(base_meta.get("genre")) != self._normalize_text(candidate_meta.get("genre")):
+            return False
+
+        # BPM obrigatório
+        base_bpm = base_meta.get("bpm")
+        candidate_bpm = candidate_meta.get("bpm")
+
+        if base_bpm and candidate_bpm:
+            if abs(base_bpm - candidate_bpm) > 6:
+                return False
+
+        # KEY obrigatória (harmônica)
+        base_key = self._normalize_key(base_meta.get("key", ""))
+        candidate_key = self._normalize_key(candidate_meta.get("key", ""))
+
+        if not self._camelot_compatible(base_key, candidate_key):
+            return False
+
+        return True
+    
     def _processar_eventos_catalogo(self):
         try:
             while True:
@@ -540,22 +562,55 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
     def _selecionar_faixas_em_segundo_plano(self, selected_label, base_track, base_metadata, tracks, metadata_by_track_id):
         try:
-            candidates = []
+            quantidade = int(self.playlist_size.get())
+
+            playlist = [base_track]
+            usados = {id(base_track)}
+
             total_tracks = len(tracks)
-            for index, other_track in enumerate(tracks, start=1):
-                if other_track is base_track or (
-                    base_track.get("id") is not None and other_track.get("id") == base_track.get("id")
-                ):
-                    continue
-                candidate_meta = metadata_by_track_id.get(id(other_track), {})
-                score = self._score_track(base_metadata, candidate_meta)
-                if score > 0:
-                    candidates.append((score, other_track))
-                if index % 25 == 0 or index == total_tracks:
-                    self.catalog_events.put(("selection_progress", index, total_tracks))
-            candidates.sort(key=lambda item: item[0], reverse=True)
+
+            for step in range(quantidade - 1):
+                ultima = playlist[-1]
+                ultima_meta = metadata_by_track_id.get(id(ultima), {})
+
+                candidatos = []
+
+                for index, other_track in enumerate(tracks, start=1):
+                    if id(other_track) in usados:
+                        continue
+
+                    candidate_meta = metadata_by_track_id.get(id(other_track), {})
+
+                    # 🔒 FILTRO obrigatório
+                    if not self._is_valid_candidate(ultima_meta, candidate_meta):
+                        continue
+
+                    score = self._score_track(ultima_meta, candidate_meta)
+
+                    if score > 0:
+                        candidatos.append((score, other_track))
+
+                    if index % 50 == 0:
+                        self.catalog_events.put(("selection_progress", index, total_tracks))
+
+                if not candidatos:
+                    break
+
+                candidatos.sort(key=lambda item: item[0], reverse=True)
+
+                # 🎲 leve variação controlada (top 5)
+                top = candidatos[:5] if len(candidatos) >= 5 else candidatos
+                escolhido = random.choice(top)[1]
+
+                playlist.append(escolhido)
+                usados.add(id(escolhido))
+
+            # mantém compatibilidade com resto do código
+            result = [(1, track) for track in playlist[1:]]
+
             self.catalog_events.put(("selection_progress", total_tracks, total_tracks))
-            self.catalog_events.put(("selection_complete", selected_label, candidates))
+            self.catalog_events.put(("selection_complete", selected_label, result))
+
         except Exception as error:
             self.catalog_events.put(("selection_error", str(error)))
 
@@ -765,40 +820,47 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
     def _score_track(self, base_meta, candidate_meta):
         score = 0
 
-        base_genre = self._normalize_text(base_meta.get("genre", ""))
-        candidate_genre = self._normalize_text(candidate_meta.get("genre", ""))
-        if base_genre and candidate_genre:
-            if base_genre == candidate_genre:
-                score += 40
-            elif base_genre in candidate_genre or candidate_genre in base_genre:
-                score += 20
-
+        # 🎧 KEY (PRIORIDADE MÁXIMA)
         base_key = self._normalize_key(base_meta.get("key", ""))
         candidate_key = self._normalize_key(candidate_meta.get("key", ""))
-        if base_key and candidate_key and self._camelot_compatible(base_key, candidate_key):
-            score += 30
 
+        base_num = self._camelot_number(base_key)
+        candidate_num = self._camelot_number(candidate_key)
+
+        if base_key == candidate_key:
+            score += 50  # perfeita
+        elif base_num == candidate_num:
+            score += 45  # relativo (8A ↔ 8B)
+        elif abs(base_num - candidate_num) == 1:
+            score += 35  # vizinha
+
+        # 🎚️ BPM
         base_bpm = base_meta.get("bpm")
         candidate_bpm = candidate_meta.get("bpm")
+
         if base_bpm and candidate_bpm:
             diff = abs(base_bpm - candidate_bpm)
-            if diff <= 4:
+            if diff <= 2:
+                score += 30
+            elif diff <= 4:
                 score += 20
-            elif diff <= 8:
+            elif diff <= 6:
                 score += 10
 
+        # ⚡ ENERGIA (FLOW)
         base_energy = base_meta.get("energy")
         candidate_energy = candidate_meta.get("energy")
+
         if base_energy is not None and candidate_energy is not None:
-            diff = abs(base_energy - candidate_energy)
-            if diff <= 0.15:
-                score += 10
-            elif diff <= 0.3:
+            diff = candidate_energy - base_energy
+
+            if -0.1 <= diff <= 0.2:
+                score += 25  # mantém ou sobe leve
+            elif -0.2 <= diff <= 0.3:
+                score += 15
+            else:
                 score += 5
-
-        if base_meta.get("description") and candidate_meta.get("description"):
-            score += 2
-
+                
         return score
 
     def _normalize_text(self, value):
@@ -831,9 +893,18 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         base_num = self._camelot_number(base_key)
         candidate_num = self._camelot_number(candidate_key)
+
         if not base_num or not candidate_num:
             return False
-        return base_num == candidate_num or abs(base_num - candidate_num) == 1
+
+        base_letter = base_key[-1] if base_key[-1] in ["A", "B"] else None
+        candidate_letter = candidate_key[-1] if candidate_key[-1] in ["A", "B"] else None
+
+        return (
+            base_num == candidate_num or  # mesma
+            abs(base_num - candidate_num) == 1 or  # vizinha
+            (base_num == candidate_num and base_letter != candidate_letter)  # relativo
+        )
 
     def _camelot_number(self, key):
         mapping = {
