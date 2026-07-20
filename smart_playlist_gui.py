@@ -21,6 +21,7 @@ from constants import (
     COLOR_TEXT_NORMAL,
     COLOR_TEXT_MUTED,
     CORNER_RADIUS_NONE,
+    COLOR_SWITCH_OFF,
     COLOR_ACCENT_BLUE,
 )
 from engine_sync_app import get_app_storage_dir, get_resource_path
@@ -32,6 +33,16 @@ from database_utils import (
 )
 
 
+# Valores numéricos usados pelo Engine DJ na coluna Track.key para a notação
+# Camelot equivalente. A Smart Playlist trabalha sempre com esta última.
+ENGINE_KEY_TO_CAMELOT = {
+    0: "8B", 1: "8A", 2: "9B", 3: "9A", 4: "10B", 5: "10A",
+    6: "11B", 7: "11A", 8: "12B", 9: "12A", 10: "1B", 11: "1A",
+    12: "2B", 13: "2A", 14: "3B", 15: "3A", 16: "4B", 17: "4A",
+    18: "5B", 19: "5A", 20: "6B", 21: "6A", 22: "7B", 23: "7A",
+}
+
+
 class SmartPlaylistWindow(ctk.CTkToplevel):
     """Janela para criar uma Smart Playlist baseada em uma música inicial."""
 
@@ -40,8 +51,8 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         self.txt = txt_strings
         self.master = master
 
-        self.title(f"Criar Smart Playlist ({VERSAO_ATUAL})")
-        self.geometry("1280x760")
+        self.title(f"{self.txt.get('smart_playlist_title', 'Criar Smart Playlist')} ({VERSAO_ATUAL})")
+        self.geometry("1280x780")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
 
@@ -52,7 +63,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         self.initial_song = ctk.StringVar(value="")
         self.playlist_size = ctk.StringVar(value="20")
         self.playlist_name = ctk.StringVar(value="Smart Playlist")
-        self.status_text = ctk.StringVar(value="Carregando bancos do Engine DJ...")
+        self.status_text = ctk.StringVar(value=self.txt.get("smart_playlist_loading_db", "Carregando bancos do Engine DJ..."))
         self.database_paths = []
         self.track_map = {}
         self.available_track_labels = []
@@ -98,41 +109,20 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
                     dark_image=logo,
                     size=(480, 90),
                 )
-                ctk.CTkLabel(self, text="", image=self.logo_smart_playlist).pack(pady=(14, 2))
+                ctk.CTkLabel(self, text="", image=self.logo_smart_playlist).pack(pady=(20, 15))
             except Exception:
                 pass
 
-        lbl_title = ctk.CTkLabel(
-            self,
-            text="CRIAR SMART PLAYLIST",
-            font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"),
-            text_color=COLOR_ACCENT_BLUE,
-        )
-        lbl_title.pack(pady=(8, 10))
-
-        lbl_desc = ctk.CTkLabel(
-            self,
-            text=(
-                "O sistema abrirá automaticamente todos os bancos do Engine DJ encontrados e usará "
-                "as faixas disponíveis para montar uma playlist semelhante com base em gênero, "
-                "tom Camelot, BPM e energia."
-            ),
-            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-            text_color=COLOR_TEXT_NORMAL,
-            wraplength=1000,
-        )
-        lbl_desc.pack(padx=24, pady=(0, 10), anchor="w")
-
         frame_selection = ctk.CTkFrame(self, fg_color="transparent")
-        frame_selection.pack(fill="x", padx=24, pady=6)
+        frame_selection.pack(fill="x", padx=24, pady=(0, 3))
 
-        ctk.CTkLabel(frame_selection, text="Música inicial", font=ctk.CTkFont(family=FONT_FAMILY, weight="bold")).pack(anchor="w")
-        entry_song = ctk.CTkEntry(frame_selection, textvariable=self.initial_song, state="readonly", font=ctk.CTkFont(family=FONT_FAMILY))
-        entry_song.pack(fill="x", pady=(4, 8))
+        ctk.CTkLabel(frame_selection, text=self.txt.get("smart_playlist_initial_song", "Música inicial"), font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold")).pack(anchor="w")
+        entry_song = ctk.CTkEntry(frame_selection, textvariable=self.initial_song, state="readonly", font=ctk.CTkFont(family=FONT_FAMILY, size=12), width=500, corner_radius=CORNER_RADIUS_NONE)
+        entry_song.pack(anchor="w", pady=(0, 4))
 
         btn_select = ctk.CTkButton(
             frame_selection,
-            text="Usar música selecionada",
+            text=self.txt.get("smart_playlist_use_selected", "Usar música selecionada"),
             width=180,
             fg_color=COLOR_ACCENT_BLUE,
             hover_color="#1F4E79",
@@ -146,48 +136,62 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         quantity_frame.pack(anchor="w", pady=(10, 0))
         ctk.CTkLabel(
             quantity_frame,
-            text="Quantidade de músicas",
-            font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"),
+            text=self.txt.get("smart_playlist_quantity", "Quantidade de músicas"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
         ).pack(side="left")
         self.quantity_menu = ctk.CTkOptionMenu(
             quantity_frame,
-            values=["5", "10", "15", "20", "30", "40", "50"],
+            values=["20", "40", "60", "80", "100"],
             variable=self.playlist_size,
             width=100,
-            font=ctk.CTkFont(family=FONT_FAMILY),
-            dropdown_font=ctk.CTkFont(family=FONT_FAMILY),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             fg_color=COLOR_ACCENT_BLUE,
+            corner_radius=CORNER_RADIUS_NONE,
             button_color="#1F4E79",
         )
         self.quantity_menu.pack(side="left", padx=(10, 0))
 
         ctk.CTkLabel(
             quantity_frame,
-            text="Nome da playlist",
-            font=ctk.CTkFont(family=FONT_FAMILY, weight="bold"),
+            text=self.txt.get("smart_playlist_name", "Nome da playlist"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
         ).pack(side="left", padx=(24, 0))
         self.playlist_name_entry = ctk.CTkEntry(
             quantity_frame,
             textvariable=self.playlist_name,
             width=250,
-            font=ctk.CTkFont(family=FONT_FAMILY),
+            corner_radius=CORNER_RADIUS_NONE,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
         )
         self.playlist_name_entry.pack(side="left", padx=(10, 0))
 
         content_frame = ctk.CTkFrame(self, fg_color="transparent")
         content_frame.pack(fill="both", expand=True, padx=24, pady=(8, 10))
 
-        left_frame = ctk.CTkFrame(content_frame, fg_color="#232323")
+        left_frame = ctk.CTkFrame(content_frame, fg_color="#232323", corner_radius=CORNER_RADIUS_NONE)
         left_frame.pack(side="left", fill="both", expand=True, padx=(0, 8))
 
-        right_frame = ctk.CTkFrame(content_frame, fg_color="#232323")
+        right_frame = ctk.CTkFrame(content_frame, fg_color="#232323", corner_radius=CORNER_RADIUS_NONE)
         right_frame.pack(side="right", fill="both", expand=True, padx=(8, 0))
 
-        ctk.CTkLabel(left_frame, text="Músicas disponíveis", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", padx=10, pady=(10, 6))
+        # --- Frame do Cabeçalho da Lista de Músicas com Botão de Refresh ---
+        header_frame = ctk.CTkFrame(left_frame, fg_color="transparent")
+        header_frame.pack(fill="x", padx=10, pady=(10, 6))
+
+        ctk.CTkLabel(header_frame, text=self.txt.get("smart_playlist_available_tracks", "Músicas disponíveis"),
+                     font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(side="left", anchor="w")
+
+        self.btn_refresh = ctk.CTkButton(header_frame, text="🔄", width=30, height=24,
+                                         font=ctk.CTkFont(size=16),
+                                         fg_color="#444444", hover_color="#555555",
+                                         command=lambda: self.carregar_bancos(clear_cache=True))
+        self.btn_refresh.pack(side="right", anchor="e")
+
         self._configure_treeview_style()
         columns = ("title", "artist", "bpm", "genre", "key", "energy")
         self.track_tree = ttk.Treeview(left_frame, columns=columns, show="headings", selectmode="browse", style="SmartPlaylist.Treeview")
-        headings = {"title": "Título", "artist": "Artista", "bpm": "BPM", "genre": "Gênero", "key": "Key", "energy": "Energia"}
+        headings = {"title": self.txt.get("col_title", "Título"), "artist": self.txt.get("col_artist", "Artista"), "bpm": "BPM", "genre": self.txt.get("col_genre", "Gênero"), "key": "Key", "energy": self.txt.get("col_energy", "Energia")}
         self.tree_headings = headings
         widths = {"title": 205, "artist": 155, "bpm": 55, "genre": 90, "key": 55, "energy": 65}
         for column in columns:
@@ -199,13 +203,14 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         tree_scroll.pack(side="right", fill="y", padx=(0, 10), pady=(0, 10))
         self.track_tree.bind("<<TreeviewSelect>>", self.on_track_selected)
 
-        ctk.CTkLabel(right_frame, text="Faixas sugeridas", font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", padx=10, pady=(10, 6))
+        ctk.CTkLabel(right_frame, text=self.txt.get("smart_playlist_suggested_tracks", "Faixas sugeridas"), font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", padx=10, pady=(10, 6))
         self.result_box = ctk.CTkTextbox(
             right_frame, height=18, fg_color="#1F1F1F", text_color=COLOR_TEXT_NORMAL,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            corner_radius=CORNER_RADIUS_NONE,
         )
         self.result_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        self.result_box.insert("0.0", "As faixas selecionadas aparecerão aqui.")
+        self.result_box.insert("0.0", self.txt.get("smart_playlist_suggested_placeholder", "As faixas selecionadas aparecerão aqui."))
         self.result_box.configure(state="disabled")
 
         bottom_area = ctk.CTkFrame(self, fg_color="transparent")
@@ -217,7 +222,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         self.btn_create = ctk.CTkButton(
             bottom_frame,
-            text="Criar Smart Playlist",
+            text=self.txt.get("smart_playlist_create_btn", "Criar Smart Playlist"),
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             height=42,
             fg_color="#27AE60",
@@ -230,7 +235,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         self.btn_regenerate = ctk.CTkButton(
             bottom_frame,
-            text="Gerar nova playlist",
+            text=self.txt.get("smart_playlist_regenerate_btn", "Gerar nova playlist"),
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             height=42,
             fg_color="#8E44AD",
@@ -244,7 +249,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         self.btn_save_engine = ctk.CTkButton(
             bottom_frame,
-            text="Salvar no Engine DJ",
+            text=self.txt.get("smart_playlist_save_btn", "Salvar no Engine DJ"),
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
             height=42,
             fg_color="#D68910",
@@ -265,17 +270,17 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         )
         self.status_label.pack(anchor="w")
 
-        self.progress_bar = ctk.CTkProgressBar(status_frame, progress_color=COLOR_ACCENT_BLUE)
+        self.progress_bar = ctk.CTkProgressBar(status_frame, progress_color=COLOR_ACCENT_BLUE, corner_radius=CORNER_RADIUS_NONE)
         self.progress_bar.pack(fill="x", pady=(4, 0))
         self.progress_bar.set(0)
 
-        lbl_footer = ctk.CTkLabel(
-            self,
-            text=f"{APP_NAME} ({VERSAO_ATUAL})",
-            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
-            text_color=COLOR_TEXT_MUTED,
-        )
-        lbl_footer.pack(side="bottom", pady=(4, 10))
+        # Rodapé (empacotado por último para garantir visibilidade)
+        footer_frame = ctk.CTkFrame(self, fg_color="transparent")
+        footer_frame.pack(side="bottom", fill="x", pady=(0, 10))
+        ctk.CTkLabel(
+            footer_frame, text=f"{APP_NAME} ({VERSAO_ATUAL})",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11), text_color=COLOR_TEXT_MUTED
+        ).pack()
 
     def on_track_selected(self, *_args):
         selection = self.track_tree.selection()
@@ -290,11 +295,11 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         style.configure(
             "SmartPlaylist.Treeview",
             background="#1E1E1E", foreground="#FFFFFF", fieldbackground="#1E1E1E",
-            rowheight=27, font=(FONT_FAMILY, 10), borderwidth=0,
+            rowheight=27, font=(FONT_FAMILY, 12), borderwidth=0,
         )
         style.configure(
             "SmartPlaylist.Treeview.Heading",
-            background="#323232", foreground="#FFFFFF", font=(FONT_FAMILY, 10, "bold"), relief="flat",
+            background="#323232", foreground="#FFFFFF", font=(FONT_FAMILY, 12, "bold"), relief="flat",
         )
         style.map("SmartPlaylist.Treeview", background=[("selected", "#00A878")], foreground=[("selected", "#000000")])
 
@@ -334,39 +339,40 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
     def _pode_executar_acao(self):
         if not engine_dj_esta_aberto():
             return True
-        self.status_text.set("Engine DJ está aberto. Feche-o para salvar no banco.")
+        self.status_text.set(self.txt.get("mik_engine_running_title", "Engine DJ em execução"))
         messagebox.showwarning(
-            "Engine DJ em execução",
-            "Feche o Engine DJ antes de salvar a playlist no banco.\n\nNenhuma alteração foi feita.",
+            self.txt.get("mik_engine_running_title", "Engine DJ em execução"),
+            self.txt.get("mik_engine_running_message", "Feche o Engine DJ antes de executar a sincronização ou limpeza.\n\nNenhuma alteração foi feita."),
         )
         return False
 
     def definir_musica_inicial(self):
         label = self.initial_song.get().strip()
         if not label:
-            messagebox.showwarning("Atenção", "Selecione uma música da lista.")
+            messagebox.showwarning(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_select_initial_song", "Selecione uma música da lista."))
             return
         if label not in self.track_map:
-            messagebox.showwarning("Atenção", "A música selecionada não está disponível no catálogo atual.")
+            messagebox.showwarning(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_initial_song_not_found", "A música selecionada não está disponível no catálogo atual."))
             return
-        self.status_text.set(f"Música inicial definida: {label}")
+        self.status_text.set(self.txt.get("smart_playlist_initial_song", "Música inicial") + f": {label}")
 
-    def carregar_bancos(self):
+    def carregar_bancos(self, clear_cache=False):
         """Carrega o catálogo em segundo plano para não atrasar a abertura da janela."""
         if self.catalog_loading:
             return
         self.catalog_loading = True
         self.track_map = {}
         self.available_track_labels = []
+        self.initial_song.set("")
         self.all_track_objects = []
         self.metadata_by_track_id = {}
         for item in self.track_tree.get_children():
             self.track_tree.delete(item)
-        self.status_text.set("Carregando catálogo de músicas em segundo plano...")
+        self.status_text.set(self.txt.get("smart_playlist_loading_catalog", "Carregando catálogo de músicas em segundo plano..."))
         self.progress_bar.set(0)
-        threading.Thread(target=self._carregar_catalogo_em_segundo_plano, daemon=True).start()
+        threading.Thread(target=self._carregar_catalogo_em_segundo_plano, args=(clear_cache,), daemon=True).start()
 
-    def _carregar_catalogo_em_segundo_plano(self):
+    def _carregar_catalogo_em_segundo_plano(self, clear_cache=False):
         database_paths = [os.path.normpath(path) for path in localizar_bancos_dados_engine()]
         track_map = {}
         labels = []
@@ -377,7 +383,10 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             self.catalog_events.put(("complete", database_paths, track_map, labels, tracks, metadata_by_track_id))
             return
 
-        cache_conn = self._abrir_cache_metadados()
+        cache_conn = None
+        if not clear_cache:
+            cache_conn = self._abrir_cache_metadados()
+
         processed = 0
         try:
             for db_path in database_paths:
@@ -385,7 +394,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
                     for track in get_all_tracks_from_database(db_path):
                         label = self._build_track_label(track)
                         if label not in track_map:
-                            metadata = self._read_track_metadata_cached(track, cache_conn)
+                            metadata = self._extract_metadata_from_track(track)
                             track_map[label] = track
                             labels.append(label)
                             tracks.append(track)
@@ -407,6 +416,41 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         self.catalog_events.put(("complete", database_paths, track_map, labels, tracks, metadata_by_track_id))
 
+    def _extract_metadata_from_track(self, track):
+        """Extrai metadados diretamente do objeto track vindo do banco de dados."""
+        return {
+            "genre": track.get("genre", ""),
+            "key": self._engine_key_to_camelot(track.get("key")),
+            "bpm": track.get("bpm"),
+            "energy": self._extract_energy_from_comment(track.get("comment")),
+            "description": track.get("comment", ""),
+            "title": (track.get("title") or track.get("filename") or "").strip(),
+        }
+
+    @staticmethod
+    def _engine_key_to_camelot(value):
+        """Converte o código numérico do Engine DJ para a key Camelot."""
+        if value is None:
+            return ""
+        try:
+            numeric_value = int(str(value).strip())
+            if str(numeric_value) == str(value).strip():
+                return ENGINE_KEY_TO_CAMELOT.get(numeric_value, "")
+        except (TypeError, ValueError):
+            pass
+        return str(value).strip()
+
+    def _extract_energy_from_comment(self, comment):
+        """Lê energia do comentário ID3, aceitando 'Energy: 7', 'Energia=7' ou só '7'."""
+        if not comment:
+            return None
+        match = re.search(r"\b(?:energy|energia)\s*[:=#-]?\s*([0-9]+(?:\.[0-9]+)?)\b", comment, re.IGNORECASE)
+        if match:
+            return self._parse_energy(match.group(1))
+        if re.fullmatch(r"\s*[0-9]+(?:\.[0-9]+)?\s*", comment):
+            return self._parse_energy(comment)
+        return None
+
     def _abrir_cache_metadados(self):
         """Abre o cache persistente das tags, sem impedir o catálogo se houver falha."""
         try:
@@ -419,30 +463,6 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             return conn
         except sqlite3.Error:
             return None
-
-    def _read_track_metadata_cached(self, track, cache_conn):
-        path = track.get("caminho_absoluto") or track.get("path")
-        if not path or not cache_conn:
-            return self._read_track_metadata(track)
-        try:
-            stat = os.stat(path)
-            normalized_path = os.path.normcase(os.path.abspath(path))
-            row = cache_conn.execute(
-                "SELECT metadata_json FROM metadata_cache WHERE path = ? AND mtime_ns = ? AND size = ?",
-                (normalized_path, stat.st_mtime_ns, stat.st_size),
-            ).fetchone()
-            if row:
-                return json.loads(row[0])
-
-            metadata = self._read_track_metadata(track)
-            cache_conn.execute(
-                "INSERT INTO metadata_cache (path, mtime_ns, size, metadata_json) VALUES (?, ?, ?, ?) "
-                "ON CONFLICT(path) DO UPDATE SET mtime_ns = excluded.mtime_ns, size = excluded.size, metadata_json = excluded.metadata_json",
-                (normalized_path, stat.st_mtime_ns, stat.st_size, json.dumps(metadata, ensure_ascii=False)),
-            )
-            return metadata
-        except (OSError, sqlite3.Error, TypeError, ValueError):
-            return self._read_track_metadata(track)
 
     def _is_valid_candidate(self, base_meta, candidate_meta):
         # GÊNERO obrigatório
@@ -484,7 +504,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
                     self.selection_loading = False
                     self.btn_create.configure(state="normal")
                     self.progress_bar.set(0)
-                    messagebox.showerror("Erro", f"Não foi possível selecionar as faixas.\n{event[1]}")
+                    messagebox.showerror(self.txt.get("error_title", "Erro"), f"{self.txt.get('smart_playlist_error_saving', 'Não foi possível selecionar as faixas.')}\n{event[1]}")
         except queue.Empty:
             pass
         try:
@@ -493,7 +513,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             pass
 
     def _atualizar_status_carregamento(self, processed):
-        self.status_text.set(f"Carregando metadados: {processed} músicas analisadas...")
+        self.status_text.set(self.txt.get("smart_playlist_loading_metadata", "Carregando metadados: {processed} músicas analisadas...").format(processed=processed))
 
     def _aplicar_catalogo_carregado(self, database_paths, track_map, labels, tracks, metadata_by_track_id):
         self.catalog_loading = False
@@ -522,36 +542,36 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         self.progress_bar.set(1)
         if labels:
-            self.status_text.set(f"{len(labels)} faixas carregadas de {len(database_paths)} banco(s).")
+            self.status_text.set(self.txt.get("smart_playlist_catalog_loaded", "{count} faixas carregadas de {db_count} banco(s).").format(count=len(labels), db_count=len(database_paths)))
         else:
-            self.status_text.set("Nenhuma faixa disponível nos bancos encontrados.")
+            self.status_text.set(self.txt.get("smart_playlist_no_tracks_found", "Nenhuma faixa disponível nos bancos encontrados."))
 
     def criar_playlist(self):
         if self.catalog_loading:
-            messagebox.showinfo("Catálogo em carregamento", "Aguarde o carregamento do catálogo terminar antes de criar a playlist.")
+            messagebox.showinfo(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_loading_catalog", "Aguarde o carregamento do catálogo terminar..."))
             return
         if self.selection_loading:
-            messagebox.showinfo("Seleção em andamento", "Aguarde a seleção atual terminar.")
+            messagebox.showinfo(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_analyzing", "Aguarde a seleção atual terminar."))
             return
         selected_label = self.initial_song.get().strip()
         if not selected_label:
-            messagebox.showwarning("Atenção", "Selecione uma música inicial antes de criar a playlist.")
+            messagebox.showwarning(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_select_initial_song", "Selecione uma música inicial antes de criar a playlist."))
             return
 
         track = self.track_map.get(selected_label)
         if not track:
-            messagebox.showerror("Erro", "A música inicial não foi encontrada no catálogo carregado.")
+            messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("smart_playlist_initial_song_not_found", "A música inicial não foi encontrada no catálogo carregado."))
             return
 
         self.btn_regenerate.configure(state="disabled")
         self.btn_save_engine.configure(state="disabled")
         self.btn_create.configure(state="disabled")
         self.selection_loading = True
-        self.status_text.set("Analisando e selecionando faixas similares...")
+        self.status_text.set(self.txt.get("smart_playlist_analyzing", "Analisando e selecionando faixas similares..."))
         self.progress_bar.set(0)
         metadata = self.metadata_by_track_id.get(id(track))
         if metadata is None:
-            metadata = self._read_track_metadata(track)
+            metadata = self._extract_metadata_from_track(track)
         tracks = list(self.all_track_objects)
         metadata_by_track_id = dict(self.metadata_by_track_id)
         threading.Thread(
@@ -618,10 +638,10 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         self.selection_loading = False
         self.btn_create.configure(state="normal")
         if not candidates:
-            messagebox.showinfo("Resultado", "Nenhuma faixa semelhante foi encontrada. A playlist foi criada vazia.")
+            messagebox.showinfo(self.txt.get("success_title", "Resultado"), self.txt.get("smart_playlist_no_similar_found", "Nenhuma faixa semelhante foi encontrada."))
             self._write_playlist([], selected_label)
             self.progress_bar.set(1)
-            self.status_text.set("Nenhuma faixa semelhante encontrada.")
+            self.status_text.set(self.txt.get("smart_playlist_no_similar_found", "Nenhuma faixa semelhante encontrada."))
             return
         self.last_candidates = candidates
         self.generated_playlists = 0
@@ -631,19 +651,22 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         """Gera outra combinação a partir da mesma música inicial."""
         selected_label = self.initial_song.get().strip()
         if not selected_label or not self.last_candidates:
-            messagebox.showwarning("Atenção", "Crie uma playlist antes de gerar uma nova versão.")
+            messagebox.showwarning(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_create_btn", "Crie uma playlist antes de gerar uma nova versão."))
             return
         self._finalizar_playlist(selected_label, self.last_candidates, shuffle=True)
 
     def _finalizar_playlist(self, selected_label, candidates, shuffle=False):
         quantity = int(self.playlist_size.get())
+        base_track = self.track_map.get(selected_label)
+
         if shuffle:
             # Mantém as faixas mais semelhantes no grupo de escolha, variando a combinação.
-            pool_size = min(len(candidates), max(quantity * 2, quantity))
-            selected_pairs = random.sample(candidates[:pool_size], min(quantity, pool_size))
+            pool_size = min(len(candidates), max(quantity * 2, quantity - 1))
+            selected_pairs = random.sample(candidates[:pool_size], min(quantity - 1, pool_size))
         else:
-            selected_pairs = candidates[:quantity]
-        selected_tracks = [track_data for _, track_data in selected_pairs]
+            selected_pairs = candidates[:quantity - 1]
+
+        selected_tracks = [base_track] + [track_data for _, track_data in selected_pairs]
         self.current_selected_tracks = selected_tracks
 
         self.generated_playlists += 1
@@ -660,8 +683,8 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         self.progress_bar.set(1)
         self.btn_regenerate.configure(state="normal")
         self.btn_save_engine.configure(state="normal")
-        self.status_text.set(f"Playlist {self.generated_playlists} criada com {len(selected_tracks)} faixas.")
-        messagebox.showinfo("Sucesso", f"Playlist criada com {len(selected_tracks)} faixas a partir da música '{selected_label}'.")
+        self.status_text.set(self.txt.get("smart_playlist_created", "Playlist {count} criada com {song} faixas.").format(count=len(selected_tracks), song=selected_label))
+        messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("smart_playlist_created", "Playlist criada com {count} faixas a partir da música '{song}'.").format(count=len(selected_tracks), song=selected_label))
 
     def salvar_no_engine(self):
         """Persiste a playlist exibida no primeiro banco Engine DJ encontrado."""
@@ -669,27 +692,27 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             return
         playlist_name = self.playlist_name.get().strip()
         if not playlist_name:
-            messagebox.showwarning("Atenção", "Digite um nome para a playlist.")
+            messagebox.showwarning(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_type_name", "Digite um nome para a playlist."))
             self.playlist_name_entry.focus_set()
             return
         if not self.current_selected_tracks:
-            messagebox.showwarning("Atenção", "Gere uma playlist antes de salvá-la no Engine DJ.")
+            messagebox.showwarning(self.txt.get("warning_title", "Atenção"), self.txt.get("smart_playlist_generate_before_save", "Gere uma playlist antes de salvá-la no Engine DJ."))
             return
         if not self.database_paths:
-            messagebox.showerror("Erro", "Nenhum banco do Engine DJ está disponível para salvar a playlist.")
+            messagebox.showerror(self.txt.get("error_title", "Erro"), self.txt.get("smart_playlist_no_db_to_save", "Nenhum banco do Engine DJ está disponível para salvar a playlist."))
             return
 
         try:
             self._save_playlist_to_engine(self.database_paths[0], playlist_name, self.current_selected_tracks)
         except ValueError as error:
-            messagebox.showwarning("Nome já utilizado", str(error))
+            messagebox.showwarning(self.txt.get("warning_title", "Nome já utilizado"), str(error))
             return
         except Exception as error:
             messagebox.showerror("Erro ao salvar", f"Não foi possível salvar a playlist no Engine DJ.\n{error}")
             return
 
         self.status_text.set(f"Playlist '{playlist_name}' salva no banco do Engine DJ.")
-        messagebox.showinfo("Sucesso", f"Playlist '{playlist_name}' salva no Engine DJ com {len(self.current_selected_tracks)} faixas.")
+        messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("smart_playlist_saved", "Playlist '{playlist_name}' salva no Engine DJ com {count} faixas.").format(playlist_name=playlist_name, count=len(self.current_selected_tracks)))
 
     def _save_playlist_to_engine(self, db_path, playlist_name, tracks):
         """Cria uma playlist raiz e seus vínculos no formato encadeado do Engine DJ."""
@@ -703,7 +726,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
                 (playlist_name,),
             ).fetchone()
             if existing:
-                raise ValueError("Já existe uma playlist com este nome. Escolha outro nome para preservar a playlist existente.")
+                raise ValueError(self.txt.get("smart_playlist_name_in_use", "Já existe uma playlist com este nome. Escolha outro nome para preservar a playlist existente."))
 
             now = datetime.now().astimezone().isoformat()
             cursor = conn.execute(
@@ -745,77 +768,6 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         title = track.get("title") or track.get("filename") or "Sem título"
         artist = track.get("artist") or ""
         return f"{title} - {artist}".strip(" -") or "Sem título"
-
-    def _read_track_metadata(self, track):
-        data = {
-            "genre": "",
-            "key": "",
-            "bpm": None,
-            "energy": None,
-            "description": "",
-            "title": (track.get("title") or track.get("filename") or "").strip(),
-        }
-
-        path = track.get("caminho_absoluto") or track.get("path")
-        if not path:
-            return data
-
-        try:
-            audio = File(path, easy=True)
-            if audio is not None:
-                data["title"] = self._first_value(audio.get("title")) or data["title"]
-                data["genre"] = self._first_value(audio.get("genre")) or ""
-                data["key"] = self._first_value(audio.get("initialkey")) or self._first_value(audio.get("key")) or ""
-                data["bpm"] = self._parse_bpm(self._first_value(audio.get("bpm")))
-                data["energy"] = self._parse_energy(self._first_value(audio.get("energy")))
-                data["description"] = self._first_value(audio.get("comment")) or ""
-        except Exception:
-            pass
-
-        try:
-            audio = File(path)
-            if hasattr(audio, "tags") and audio.tags:
-                # O comentário ID3 normalmente é identificado como COMM::idioma,
-                # portanto não deve ser procurado apenas pela chave exata "COMM".
-                comments = audio.tags.getall("COMM") if hasattr(audio.tags, "getall") else []
-                if comments:
-                    comment_texts = []
-                    for frame in comments:
-                        text = getattr(frame, "text", None)
-                        if text:
-                            comment_texts.extend(text if isinstance(text, list) else [text])
-                    if comment_texts:
-                        data["description"] = " | ".join(str(text) for text in comment_texts)
-                for tag in audio.tags:
-                    if tag in {"TXXX", "TKEY", "TBPM"}:
-                        try:
-                            values = audio.tags.getall(tag)
-                            if values:
-                                raw_value = getattr(values[0], "text", None) or getattr(values[0], "value", None)
-                                if raw_value:
-                                    if tag == "TKEY":
-                                        data["key"] = self._first_value(raw_value)
-                                    elif tag == "TBPM":
-                                        data["bpm"] = self._parse_bpm(self._first_value(raw_value))
-                        except Exception:
-                            pass
-        except Exception:
-            pass
-
-        if not data["bpm"]:
-            bpm_from_desc = self._extract_from_text(data["description"], "bpm")
-            if bpm_from_desc:
-                data["bpm"] = self._parse_bpm(bpm_from_desc)
-
-        if data["energy"] is None:
-            data["energy"] = self._extract_energy_from_comment(data["description"])
-
-        if not data["key"]:
-            key_from_desc = self._extract_from_text(data["description"], "key")
-            if key_from_desc:
-                data["key"] = key_from_desc
-
-        return data
 
     def _score_track(self, base_meta, candidate_meta):
         score = 0

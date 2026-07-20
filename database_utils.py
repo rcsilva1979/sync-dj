@@ -138,7 +138,8 @@ def get_all_tracks_from_database(db_path):
         with sqlite3.connect(db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                "SELECT id, title, artist, album, path, filename, length, bpm, year, fileType, fileBytes "
+                "SELECT id, title, artist, album, path, filename, length, bpm, year, fileType, fileBytes, "
+                "genre, \"key\" AS key, comment "
                 "FROM Track"
             ).fetchall()
         tracks = []
