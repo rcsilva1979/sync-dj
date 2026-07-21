@@ -21,7 +21,7 @@ class EngineToolsWindow(ctk.CTkToplevel):
         self.master = master
 
         self.title(f"{self.txt['engine_tools_title']} ({VERSAO_ATUAL})")
-        self.geometry("600x400")
+        self.geometry("600x510")
         self.resizable(False, False)
         self.configure(fg_color=COLOR_BG_DARK)
 
@@ -48,9 +48,20 @@ class EngineToolsWindow(ctk.CTkToplevel):
         self.construir_ui()
 
     def construir_ui(self):
-        lbl_title = ctk.CTkLabel(self, text=self.txt["engine_tools_title"].upper(),
-                                 font=ctk.CTkFont(family=FONT_FAMILY, size=22, weight="bold"), text_color=COLOR_ACCENT_BLUE)
-        lbl_title.pack(pady=(25, 20))
+        logo_path = get_resource_path(os.path.join("images", "logo_tools_engine.png"))
+        if os.path.exists(logo_path):
+            try:
+                logo = Image.open(logo_path)
+                self.logo_engine_tools = ctk.CTkImage(
+                    light_image=logo,
+                    dark_image=logo,
+                    size=(480, 90),
+                )
+                ctk.CTkLabel(self, text="", image=self.logo_engine_tools).pack(pady=(20, 8))
+            except Exception:
+                pass
+
+        
 
         # Frame para os botões
         button_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -68,7 +79,7 @@ class EngineToolsWindow(ctk.CTkToplevel):
         btn2 = ctk.CTkButton(button_frame, text=self.txt.get("engine_tools_export_history_btn", "Exportar Histórico"),
                      font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
                      height=40, width=250, fg_color=COLOR_ACCENT_GREEN, # Usar uma cor diferente para o segundo botão
-                     text_color=COLOR_TEXT_NORMAL, hover_color="#008000", # Cor de hover para o segundo botão
+                     text_color=COLOR_TEXT_NORMAL, hover_color="#00b37e", # Cor de hover para o segundo botão
                      corner_radius=CORNER_RADIUS_NONE, command=self.abrir_export_history)
         btn2.pack(pady=10)
 

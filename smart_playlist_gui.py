@@ -63,6 +63,9 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         self.initial_song = ctk.StringVar(value="")
         self.playlist_size = ctk.StringVar(value="20")
         self.playlist_name = ctk.StringVar(value="Smart Playlist")
+        self.bpm_sensitivity = ctk.StringVar(value="5%")
+        self.key_sensitivity = ctk.StringVar(value="1")
+        self.energy_sensitivity = ctk.StringVar(value="10%")
         self.status_text = ctk.StringVar(value=self.txt.get("smart_playlist_loading_db", "Carregando bancos do Engine DJ..."))
         self.database_paths = []
         self.track_map = {}
@@ -116,12 +119,17 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         frame_selection = ctk.CTkFrame(self, fg_color="transparent")
         frame_selection.pack(fill="x", padx=24, pady=(0, 3))
 
-        ctk.CTkLabel(frame_selection, text=self.txt.get("smart_playlist_initial_song", "Música inicial"), font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold")).pack(anchor="w")
-        entry_song = ctk.CTkEntry(frame_selection, textvariable=self.initial_song, state="readonly", font=ctk.CTkFont(family=FONT_FAMILY, size=12), width=500, corner_radius=CORNER_RADIUS_NONE)
+        top_row = ctk.CTkFrame(frame_selection, fg_color="transparent")
+        top_row.pack(fill="x")
+        song_frame = ctk.CTkFrame(top_row, fg_color="transparent")
+        song_frame.pack(side="left", anchor="w")
+
+        ctk.CTkLabel(song_frame, text=self.txt.get("smart_playlist_initial_song", "Música inicial"), font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold")).pack(anchor="w")
+        entry_song = ctk.CTkEntry(song_frame, textvariable=self.initial_song, state="readonly", font=ctk.CTkFont(family=FONT_FAMILY, size=12), width=500, corner_radius=CORNER_RADIUS_NONE)
         entry_song.pack(anchor="w", pady=(0, 4))
 
         btn_select = ctk.CTkButton(
-            frame_selection,
+            song_frame,
             text=self.txt.get("smart_playlist_use_selected", "Usar música selecionada"),
             width=180,
             fg_color=COLOR_ACCENT_BLUE,
@@ -131,6 +139,22 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             command=self.definir_musica_inicial,
         )
         btn_select.pack(anchor="w")
+
+        sensitivity_frame = ctk.CTkFrame(top_row, fg_color="transparent")
+        sensitivity_frame.pack(side="left", anchor="w", padx=(34, 0), pady=(18, 0))
+        ctk.CTkLabel(sensitivity_frame, text="Sensibilidade", font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold")).pack(side="left")
+        for label, variable, values, width in (
+            ("BPM", self.bpm_sensitivity, ["2%", "5%", "10%", "15%", "20%"], 76),
+            ("Key (passos)", self.key_sensitivity, ["0", "1", "2", "3"], 80),
+            ("Energia", self.energy_sensitivity, ["5%", "10%", "20%", "30%", "50%"], 76),
+        ):
+            ctk.CTkLabel(sensitivity_frame, text=label, font=ctk.CTkFont(family=FONT_FAMILY, size=12)).pack(side="left", padx=(18, 5))
+            ctk.CTkOptionMenu(
+                sensitivity_frame, values=values, variable=variable, width=width,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+                dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+                fg_color=COLOR_ACCENT_BLUE, button_color="#1F4E79", corner_radius=CORNER_RADIUS_NONE,
+            ).pack(side="left")
 
         quantity_frame = ctk.CTkFrame(frame_selection, fg_color="transparent")
         quantity_frame.pack(anchor="w", pady=(10, 0))
@@ -204,14 +228,17 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         self.track_tree.bind("<<TreeviewSelect>>", self.on_track_selected)
 
         ctk.CTkLabel(right_frame, text=self.txt.get("smart_playlist_suggested_tracks", "Faixas sugeridas"), font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold")).pack(anchor="w", padx=10, pady=(10, 6))
-        self.result_box = ctk.CTkTextbox(
-            right_frame, height=18, fg_color="#1F1F1F", text_color=COLOR_TEXT_NORMAL,
-            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
-            corner_radius=CORNER_RADIUS_NONE,
-        )
-        self.result_box.pack(fill="both", expand=True, padx=10, pady=(0, 10))
-        self.result_box.insert("0.0", self.txt.get("smart_playlist_suggested_placeholder", "As faixas selecionadas aparecerão aqui."))
-        self.result_box.configure(state="disabled")
+        suggested_columns = ("position", "title", "artist", "bpm", "key")
+        self.suggested_tree = ttk.Treeview(right_frame, columns=suggested_columns, show="headings", style="SmartPlaylist.Treeview")
+        suggested_headings = {"position": "#", "title": "Título", "artist": "Artista", "bpm": "BPM", "key": "Key"}
+        suggested_widths = {"position": 35, "title": 180, "artist": 140, "bpm": 55, "key": 55}
+        for column in suggested_columns:
+            self.suggested_tree.heading(column, text=suggested_headings[column])
+            self.suggested_tree.column(column, width=suggested_widths[column], minwidth=35, anchor="w")
+        suggested_scroll = ttk.Scrollbar(right_frame, orient="vertical", command=self.suggested_tree.yview)
+        self.suggested_tree.configure(yscrollcommand=suggested_scroll.set)
+        self.suggested_tree.pack(side="left", fill="both", expand=True, padx=(10, 0), pady=(0, 10))
+        suggested_scroll.pack(side="right", fill="y", padx=(0, 10), pady=(0, 10))
 
         bottom_area = ctk.CTkFrame(self, fg_color="transparent")
         bottom_area.pack(fill="x", padx=24, pady=(0, 6))
@@ -464,7 +491,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         except sqlite3.Error:
             return None
 
-    def _is_valid_candidate(self, base_meta, candidate_meta):
+    def _is_valid_candidate(self, base_meta, candidate_meta, bpm_tolerance, key_tolerance, energy_tolerance):
         # GÊNERO obrigatório
         if self._normalize_text(base_meta.get("genre")) != self._normalize_text(candidate_meta.get("genre")):
             return False
@@ -474,15 +501,25 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         candidate_bpm = candidate_meta.get("bpm")
 
         if base_bpm and candidate_bpm:
-            if abs(base_bpm - candidate_bpm) > 6:
+            if abs(base_bpm - candidate_bpm) > base_bpm * bpm_tolerance:
                 return False
 
         # KEY obrigatória (harmônica)
         base_key = self._normalize_key(base_meta.get("key", ""))
         candidate_key = self._normalize_key(candidate_meta.get("key", ""))
 
-        if not self._camelot_compatible(base_key, candidate_key):
+        key_distance = self._camelot_distance(base_key, candidate_key)
+        if key_distance is None or key_distance > key_tolerance:
             return False
+
+        # Energia usa uma escala de 0-1 ou 0-10, conforme os valores presentes
+        # nas tags. Assim 10% representa 0,1 ou 1 ponto, respectivamente.
+        base_energy = base_meta.get("energy")
+        candidate_energy = candidate_meta.get("energy")
+        if base_energy is not None and candidate_energy is not None:
+            energy_scale = 10 if max(abs(base_energy), abs(candidate_energy)) > 1 else 1
+            if abs(base_energy - candidate_energy) > energy_scale * energy_tolerance:
+                return False
 
         return True
     
@@ -574,13 +611,16 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
             metadata = self._extract_metadata_from_track(track)
         tracks = list(self.all_track_objects)
         metadata_by_track_id = dict(self.metadata_by_track_id)
+        bpm_tolerance = float(self.bpm_sensitivity.get().rstrip("%")) / 100
+        key_tolerance = int(self.key_sensitivity.get())
+        energy_tolerance = float(self.energy_sensitivity.get().rstrip("%")) / 100
         threading.Thread(
             target=self._selecionar_faixas_em_segundo_plano,
-            args=(selected_label, track, metadata, tracks, metadata_by_track_id),
+            args=(selected_label, track, metadata, tracks, metadata_by_track_id, bpm_tolerance, key_tolerance, energy_tolerance),
             daemon=True,
         ).start()
 
-    def _selecionar_faixas_em_segundo_plano(self, selected_label, base_track, base_metadata, tracks, metadata_by_track_id):
+    def _selecionar_faixas_em_segundo_plano(self, selected_label, base_track, base_metadata, tracks, metadata_by_track_id, bpm_tolerance, key_tolerance, energy_tolerance):
         try:
             quantidade = int(self.playlist_size.get())
 
@@ -602,7 +642,7 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
                     candidate_meta = metadata_by_track_id.get(id(other_track), {})
 
                     # 🔒 FILTRO obrigatório
-                    if not self._is_valid_candidate(ultima_meta, candidate_meta):
+                    if not self._is_valid_candidate(ultima_meta, candidate_meta, bpm_tolerance, key_tolerance, energy_tolerance):
                         continue
 
                     score = self._score_track(ultima_meta, candidate_meta)
@@ -671,20 +711,31 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
 
         self.generated_playlists += 1
         self._write_playlist(selected_tracks, selected_label, self.generated_playlists)
-
-        preview = "\n".join(
-            f"{index}. {self._build_track_label(item)}" for index, item in enumerate(selected_tracks, start=1)
-        )
-        self.result_box.configure(state="normal")
-        self.result_box.delete("0.0", tk.END)
-        self.result_box.insert("0.0", preview)
-        self.result_box.configure(state="disabled")
+        self._show_suggested_tracks(selected_tracks)
 
         self.progress_bar.set(1)
         self.btn_regenerate.configure(state="normal")
         self.btn_save_engine.configure(state="normal")
         self.status_text.set(self.txt.get("smart_playlist_created", "Playlist {count} criada com {song} faixas.").format(count=len(selected_tracks), song=selected_label))
         messagebox.showinfo(self.txt.get("success_title", "Sucesso"), self.txt.get("smart_playlist_created", "Playlist criada com {count} faixas a partir da música '{song}'.").format(count=len(selected_tracks), song=selected_label))
+
+    def _show_suggested_tracks(self, tracks):
+        """Exibe as faixas selecionadas, incluindo BPM e key harmônica."""
+        for item in self.suggested_tree.get_children():
+            self.suggested_tree.delete(item)
+        for index, track in enumerate(tracks, start=1):
+            metadata = self.metadata_by_track_id.get(id(track), self._extract_metadata_from_track(track))
+            bpm = metadata.get("bpm")
+            self.suggested_tree.insert(
+                "", tk.END,
+                values=(
+                    index,
+                    metadata.get("title") or track.get("title") or "Sem título",
+                    track.get("artist") or "",
+                    f"{bpm:g}" if bpm is not None else "—",
+                    metadata.get("key") or "—",
+                ),
+            )
 
     def salvar_no_engine(self):
         """Persiste a playlist exibida no primeiro banco Engine DJ encontrado."""
@@ -840,23 +891,19 @@ class SmartPlaylistWindow(ctk.CTkToplevel):
         return text
 
     def _camelot_compatible(self, base_key, candidate_key):
-        if not base_key or not candidate_key:
-            return False
+        distance = self._camelot_distance(base_key, candidate_key)
+        return distance is not None and distance <= 1
 
+    def _camelot_distance(self, base_key, candidate_key):
+        """Retorna a distância circular entre duas posições Camelot."""
+        if not base_key or not candidate_key:
+            return None
         base_num = self._camelot_number(base_key)
         candidate_num = self._camelot_number(candidate_key)
-
         if not base_num or not candidate_num:
-            return False
-
-        base_letter = base_key[-1] if base_key[-1] in ["A", "B"] else None
-        candidate_letter = candidate_key[-1] if candidate_key[-1] in ["A", "B"] else None
-
-        return (
-            base_num == candidate_num or  # mesma
-            abs(base_num - candidate_num) == 1 or  # vizinha
-            (base_num == candidate_num and base_letter != candidate_letter)  # relativo
-        )
+            return None
+        raw_distance = abs(base_num - candidate_num)
+        return min(raw_distance, 12 - raw_distance)
 
     def _camelot_number(self, key):
         mapping = {
