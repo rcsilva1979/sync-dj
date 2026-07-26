@@ -110,21 +110,16 @@ def get_resource_path(relative_path):
 def check_for_updates(current_version: str) -> str | None:
     """Verifica no GitHub se há uma nova versão disponível."""
     try:
-        try:
-            import certifi
-            ctx = ssl.create_default_context(cafile=certifi.where())
-        except ImportError:
-            ctx = ssl.create_default_context()
+        import httpx
         
         headers = {'User-Agent': 'SyncDJ-Tools-App'}
         if GITHUB_TOKEN:
             headers['Authorization'] = f'token {GITHUB_TOKEN}'
             
-        req = urllib.request.Request(LATEST_RELEASE_API, headers=headers)
-        
-        with urllib.request.urlopen(req, timeout=10, context=ctx) as response:
-            if response.status == 200:
-                data = json.loads(response.read().decode())
+        with httpx.Client(timeout=10.0) as client:
+            response = client.get(LATEST_RELEASE_API, headers=headers)
+            if response.status_code == 200:
+                data = response.json()
                 
                 github_version = ""
                 if isinstance(data, dict):
@@ -134,7 +129,6 @@ def check_for_updates(current_version: str) -> str | None:
                     
                 if github_version and versao_maior(github_version, current_version):
                     return github_version
-
     except Exception:
         pass
     return None
@@ -773,15 +767,35 @@ class SyncManager:
                 # pode ignorar os itens adicionados em Phase 3 se a playlist for considerada "shadow" ou temporária.
                 cursor.execute("UPDATE Playlist SET lastEditTime = ?, isExplicitlyExported = 1, isPersisted = 1 WHERE id = ?", (lastEditTime_iso, my_collection_id))
 
-                cte_query = "WITH RECURSIVE descendants(id) AS (SELECT id FROM Playlist WHERE parentListId = ? UNION ALL SELECT p.id FROM Playlist p INNER JOIN descendants d ON p.parentListId = d.id) SELECT id FROM descendants;"
-                cursor.execute(cte_query, (my_collection_id,))
-                descendants = [r[0] for r in cursor.fetchall()]
-
-                if descendants:
-                    placeholders = ','.join('?' * len(descendants))
-                    cursor.execute(f"DELETE FROM PlaylistEntity WHERE listId IN ({placeholders})", descendants) # type: ignore
-                    cursor.execute(f"DELETE FROM Playlist WHERE id IN ({placeholders})", descendants) # type: ignore
-                    self.log(log_paths, f"  [PLAYLIST] Removidas {len(descendants)} sub-playlist(s) antigas")
+                # Delete sub-playlists from PlaylistEntity
+                query_entity = """
+                    DELETE FROM PlaylistEntity
+                    WHERE listId IN (
+                        WITH RECURSIVE descendants(id) AS (
+                            SELECT id FROM Playlist WHERE parentListId = ?
+                            UNION ALL
+                            SELECT p.id FROM Playlist p INNER JOIN descendants d ON p.parentListId = d.id
+                        )
+                        SELECT id FROM descendants
+                    )
+                """
+                # Delete sub-playlists from Playlist
+                query_playlist = """
+                    DELETE FROM Playlist
+                    WHERE id IN (
+                        WITH RECURSIVE descendants(id) AS (
+                            SELECT id FROM Playlist WHERE parentListId = ?
+                            UNION ALL
+                            SELECT p.id FROM Playlist p INNER JOIN descendants d ON p.parentListId = d.id
+                        )
+                        SELECT id FROM descendants
+                    )
+                """
+                cursor.execute(query_entity, (my_collection_id,))
+                cursor.execute(query_playlist, (my_collection_id,))
+                deleted_count = cursor.rowcount
+                if deleted_count > 0:
+                    self.log(log_paths, f"  [PLAYLIST] Removidas {deleted_count} sub-playlist(s) antigas")
 
                 # Antes de apagar as entidades da playlist raiz, salva as tracks que
                 # existem no banco mas nao estao mais no disco (arquivos removidos/movidos).
