@@ -452,7 +452,7 @@ def get_track_info_map(conn: sqlite3.Connection) -> dict[Any, TrackInfo]:
     sql = f"SELECT {', '.join(quote_ident(c) for c in selected)} FROM {quote_ident(track_table)}"
 
     tracks: dict[Any, TrackInfo] = {}
-    for row in conn.execute(sql):
+    for row in conn.execute(sql):  # nosec B608
         values = dict(zip(selected, row))
         track_id = values.get(id_col)
         tracks[track_id] = TrackInfo(
@@ -545,7 +545,7 @@ def read_hotcues(conn: sqlite3.Connection, sample_rate: float | None) -> list[Ho
 
     cues: list[Hotcue] = []
 
-    cursor = conn.execute(sql)
+    cursor = conn.execute(sql)  # nosec B608
 
     for row in cursor:
         # garante alinhamento seguro com colunas selecionadas
@@ -1753,7 +1753,7 @@ def cmd_inspect(args: argparse.Namespace) -> int:
     with connect_readonly(Path(args.db)) as conn:
         for table in table_names(conn):
             cols = columns(conn, table)
-            count = conn.execute(f"SELECT COUNT(*) FROM {quote_ident(table)}").fetchone()[0]
+            count = conn.execute(f"SELECT COUNT(*) FROM {quote_ident(table)}").fetchone()[0]  # nosec B608
             print(f"{table} ({count} linhas)")
             print("  " + ", ".join(cols))
     return 0
