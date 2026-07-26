@@ -110,7 +110,11 @@ def get_resource_path(relative_path):
 def check_for_updates(current_version: str) -> str | None:
     """Verifica no GitHub se há uma nova versão disponível."""
     try:
-        ctx = ssl._create_unverified_context()
+        try:
+            import certifi
+            ctx = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            ctx = ssl.create_default_context()
         
         headers = {'User-Agent': 'SyncDJ-Tools-App'}
         if GITHUB_TOKEN:

@@ -299,16 +299,20 @@ class ImportDevicePlaylistWindow(ctk.CTkToplevel):
         Ativa todos os nós de playlist na subárvore local do playlist root_id.
         """
         now_iso = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cte = "WITH RECURSIVE descendants(id) AS (SELECT id FROM Playlist WHERE id = ? UNION ALL SELECT p.id FROM Playlist p INNER JOIN descendants d ON p.parentListId = d.id) SELECT id FROM descendants;"
-        cursor.execute(cte, (root_id,))
-        ids = [row[0] for row in cursor.fetchall()]
-        if ids:
-            placeholders = ",".join(["?"] * len(ids))
-            cursor.execute(
-                f"UPDATE Playlist SET isPersisted = 1, isExplicitlyExported = 1, lastEditTime = ? WHERE id IN ({placeholders})",
-                tuple([now_iso] + ids)
+        query = """
+            UPDATE Playlist
+            SET isPersisted = 1, isExplicitlyExported = 1, lastEditTime = ?
+            WHERE id IN (
+                WITH RECURSIVE descendants(id) AS (
+                    SELECT id FROM Playlist WHERE id = ?
+                    UNION ALL
+                    SELECT p.id FROM Playlist p INNER JOIN descendants d ON p.parentListId = d.id
+                )
+                SELECT id FROM descendants
             )
-            self.manager.log(log_paths, f"Ativada subárvore local para playlist ID {root_id}: {len(ids)} nós")
+        """
+        cursor.execute(query, (now_iso, root_id))
+        self.manager.log(log_paths, f"Ativada subárvore local para playlist ID {root_id}: {cursor.rowcount} nós")
 
     def _update_local_playlists(self):
         """Atualiza a lista de playlists locais na combo box."""
