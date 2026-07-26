@@ -27,11 +27,13 @@ jobs:
           pip install customtkinter Pillow mutagen tinytag pyinstaller shazamio httpx imageio-ffmpeg anyio
 
       - name: Build EXE with PyInstaller
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           # Compila incluindo o binário na raiz do executável
           # imageio-ffmpeg já inclui o binário, então não precisamos de --add-binary separado para ele.
           # PyInstaller deve coletar o imageio-ffmpeg e seus dados automaticamente.
-          python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --collect-all shazamio --collect-all httpx --collect-all anyio --collect-all imageio_ffmpeg --icon "images/sync_icon.ico" --name "SyncDJ_Tools_${{ github.ref_name }}" main.py
+          python -m PyInstaller --noconfirm --onefile --windowed --add-data "images;images" --collect-all shazamio --collect-all httpx --collect-all anyio --collect-all imageio_ffmpeg --icon "images/sync_icon.ico" --name "SyncDJ_Tools_$env:REF_NAME" main.py
 
       - name: List dist folder
         run: dir dist
