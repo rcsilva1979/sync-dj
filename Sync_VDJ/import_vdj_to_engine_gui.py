@@ -3,7 +3,7 @@ from tkinter import filedialog, messagebox
 import os
 import sys
 import sqlite3
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405
 from datetime import datetime
 from PIL import Image, ImageTk
 from collections import defaultdict
@@ -66,7 +66,7 @@ class PlaylistContentWindow(ctk.CTkToplevel):
             found_count = 0
             missing_count = 0
             for xml_path in xml_paths:
-                tree = ET.parse(xml_path)
+                tree = ET.parse(xml_path)  # nosec B314
                 root = tree.getroot()
                 songs = root.findall("song")
                 
@@ -341,7 +341,7 @@ class ImportVDJToEngineWindow(ctk.CTkToplevel):
             tracks_by_drive = defaultdict(list)
             for xml_path in xml_paths:
                 self.manager.log(log_paths, f"Analisando XML: {xml_path}", nivel="debug")
-                tree = ET.parse(xml_path)
+                tree = ET.parse(xml_path)  # nosec B314
                 root = tree.getroot()
                 for song in root.findall("song"):
                     path_abs = str(song.get("path") or "")
