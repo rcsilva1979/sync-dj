@@ -146,7 +146,13 @@ def columns(conn: sqlite3.Connection, table: str) -> list[str]:
     """
     Retorna uma lista com os nomes das colunas de uma tabela específica.
     """
-    return [row[1] for row in conn.execute(f"PRAGMA table_info({quote_ident(table)})")]
+    return [
+    row[0]
+    for row in conn.execute(
+        "SELECT name FROM pragma_table_info(?)",
+        (table,),
+    )
+    ]
 
 
 def find_name(names: Iterable[str], wanted: str) -> str | None:
